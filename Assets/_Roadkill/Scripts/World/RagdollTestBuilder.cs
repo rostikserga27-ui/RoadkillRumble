@@ -7,7 +7,8 @@ namespace Roadkill
     /// Builds ground, a ramp ending in a drop, a steep slope, a crate pyramid, a bouncy pad and a box
     /// cannon, then spawns a local player made exactly like NetPlayer: the same capsule and PlayerMotor
     /// (same input and movement code) with the Fisherman_Ragdoll prefab following it, seen through a
-    /// third-person follow camera. RagdollDebugPanel adds the buttons and live sliders.
+    /// third-person follow camera. RagdollTestHands gives it the game's grab and throw (LMB / RMB, G);
+    /// RagdollDebugPanel adds the buttons and live sliders.
     /// </summary>
     public class RagdollTestBuilder : MonoBehaviour
     {
@@ -21,6 +22,7 @@ namespace Roadkill
         public PlayerMotor Motor { get; private set; }
         public ActiveRagdollController Body { get; private set; }
         public RagdollRemoteStandIn Remote { get; private set; }
+        public RagdollTestHands TestHands { get; private set; }
 
         Transform cannon;
         PhysicsMaterial crateMaterial;
@@ -146,10 +148,24 @@ namespace Roadkill
             follow.motor = Motor;
             follow.body = Body;
 
+            TestHands = gameObject.AddComponent<RagdollTestHands>();
+            TestHands.builder = this;
+
             var panel = gameObject.AddComponent<RagdollDebugPanel>();
             panel.builder = this;
             panel.autotest = gameObject.AddComponent<RagdollAutotest>();
             panel.autotest.builder = this;
+        }
+
+        /// <summary>A loose crate (grab and throw test).</summary>
+        public Rigidbody SpawnCrate(Vector3 position, float mass = 8f)
+        {
+            var crate = Block("Crate", position, Vector3.one * 0.5f, Crate);
+            crate.GetComponent<Collider>().sharedMaterial = crateMaterial;
+            var body = crate.AddComponent<Rigidbody>();
+            body.mass = mass;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
+            return body;
         }
 
         /// <summary>Fire a 25 kg box at the fisherman (hit test).</summary>

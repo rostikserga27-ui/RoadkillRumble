@@ -15,6 +15,10 @@ namespace Roadkill
     /// player. Because the capsule moves (and interpolates) every frame, the ragdoll detaches from it at
     /// Start and follows by force alone; it destroys itself when the capsule goes away.
     ///
+    /// The gait follows the direction of travel relative to the facing (strafing side-steps, walking
+    /// backwards reverses the swing). Hands reach for whatever the player holds, and a throw winds up
+    /// (lean back, arms up) and flings forward.
+    ///
     /// Active and limp ("Ragdoll Mode") blend over modeBlendSeconds. Limp comes from SetLimp, from the
     /// player being ragdolled (PlayerMotor locally, PlayerNet for remote copies) or from a hard knock.
     /// Built by the prefab generator (FishermanRagdollBuilder); values below are the tuned defaults.
@@ -93,6 +97,19 @@ namespace Roadkill
         public float stepHeight = 0.1f;       // how high the swinging foot lifts
         public float stanceWidth = 0.11f;
 
+        [Header("Hands")]
+        public float reachSpring = 150f;      // 1/s^2: a hand pulled onto what it holds
+        public float reachDamping = 16f;
+        public float maxReachAcceleration = 120f;
+        public float throwWindUp = 16f;       // degrees he leans back at full charge
+        public float throwLunge = 20f;        // degrees he lunges forward on the throw
+        public float throwSwingSeconds = 0.35f;
+        [Tooltip("Degrees he leans toward a held object per metre it is beyond his reach (the game holds loads out in front).")]
+        public float carryLeanPerMetre = 45f;
+        public float maxCarryLean = 20f;
+        [Range(0f, 1f), Tooltip("Side-steps are this much shorter than forward steps, so the feet do not cross.")]
+        public float sideStepScale = 0.4f;
+
         [Header("Modes")]
         public float modeBlendSeconds = 0.3f;
         [Tooltip("Off on the network: there the server decides knockdowns and hits only stagger the body.")]
@@ -113,12 +130,24 @@ namespace Roadkill
         public bool IsUpright => chest != null && Vector3.Angle(chest.body.rotation * Quaternion.Inverse(chest.restRotation) * Vector3.up, Vector3.up) < 30f
                                  && Mathf.Abs(hips.body.position.y - root.position.y - hipHeight) < 0.15f;
         public float ActiveWeight => weight;
+        /// <summary>Right after a throw, while the arms fling forward.</summary>
+        public bool IsThrowing => throwSwingTimer > 0f;
+        /// <summary>Shoulder to palm at full stretch (metres).</summary>
+        public float ReachLength(int hand) => Vector3.Distance(upperArms[hand].restPosition, hands[hand].restPosition) + 0.08f;
+        /// <summary>Direction of travel in the character's frame (x = right, z = forward), unit length.</summary>
+        public Vector3 MoveDirection => move;
         public float Speed => speed;
         public Rigidbody Hips => hips.body;
         /// <summary>The networked player this body belongs to, if any (hits on the body count as hits on them).</summary>
         public PlayerNet Player { get; private set; }
 
         Part hips, chest;
+        readonly Part[] upperArms = new Part[2], lowerArms = new Part[2], hands = new Part[2];   // 0 left, 1 right
+        readonly bool[] reaching = new bool[2];
+        readonly Vector3[] reachTargets = new Vector3[2];
+        readonly float[] reachWeight = new float[2];
+        float throwCharge, throwSwingTimer;
+        Vector3 move = Vector3.forward;
         float armMass;
         float phaseRate;
         Collider rootCollider;
@@ -145,6 +174,10 @@ namespace Roadkill
                 if (p.role == Role.Hips) hips = p;
                 if (p.role == Role.Chest) chest = p;
                 if (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand) armMass += p.body.mass;
+                int sideIndex = p.side < 0f ? 0 : 1;
+                if (p.role == Role.UpperArm) upperArms[sideIndex] = p;
+                if (p.role == Role.LowerArm) lowerArms[sideIndex] = p;
+                if (p.role == Role.Hand) hands[sideIndex] = p;
                 ownBodies.Add(p.body);
                 totalMass += p.body.mass;
                 p.body.maxAngularVelocity = 25f;
@@ -217,6 +250,9 @@ namespace Roadkill
 
             knockoutTimer = Mathf.Max(0f, knockoutTimer - dt);
             staggerTimer = Mathf.Max(0f, staggerTimer - dt);
+            throwSwingTimer = Mathf.Max(0f, throwSwingTimer - dt);
+            for (int i = 0; i < 2; i++)
+                reachWeight[i] = Mathf.MoveTowards(reachWeight[i], reaching[i] || throwSwingTimer > 0f ? 1f : 0f, dt * 6f);
             weight = Mathf.MoveTowards(weight, IsLimp ? 0f : 1f, dt / Mathf.Max(0.01f, modeBlendSeconds));
             TrackRoot(dt);
 
@@ -231,6 +267,7 @@ namespace Roadkill
                 Balance();
                 Pose();
                 Step();
+                Reach();
             }
             if (weight < 1f) Leash();
         }
@@ -250,6 +287,12 @@ namespace Roadkill
             air = Mathf.MoveTowards(air, IsGrounded ? 0f : 1f, dt * 6f);
             float flat = new Vector2(rootVelocity.x, rootVelocity.z).magnitude;
             speed = Mathf.Lerp(speed, flat, 1f - Mathf.Exp(-8f * dt));
+            if (flat > 0.3f)
+            {
+                // Travel direction in the character's own frame, eased so a quick turn does not flip the legs.
+                Vector3 local = Quaternion.Inverse(Facing()) * new Vector3(rootVelocity.x, 0f, rootVelocity.z);
+                move = Vector3.Slerp(move, local.normalized, 1f - Mathf.Exp(-10f * dt)).normalized;
+            }
             phaseRate = Mathf.Min(speed / strideLength, maxCadence) * Mathf.PI * 2f;
             if (IsGrounded) phase += phaseRate * dt;
         }
@@ -274,6 +317,8 @@ namespace Roadkill
                 if (p.joint == null) continue;
                 float k = p.strength * weight * soft;
                 if (p.role == Role.Head) k *= Mathf.Lerp(1f, 0.2f, headFloppiness);
+                if (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand)
+                    k *= Mathf.Lerp(1f, 0.25f, reachWeight[p.side < 0f ? 0 : 1]);   // let the reach pull the arm
                 p.joint.slerpDrive = new JointDrive
                 {
                     positionSpring = jointSpring * k,
@@ -302,11 +347,15 @@ namespace Roadkill
             Vector3 lift = -Physics.gravity * gravityMultiplier;   // carries the whole body
             body.AddForce((acceleration + lift) * (totalMass * s), ForceMode.Force);
 
-            Vector3 facing = Vector3.ProjectOnPlane(root.forward, Vector3.up);
-            if (facing.sqrMagnitude < 0.001f) facing = Vector3.ProjectOnPlane(hips.body.rotation * Vector3.forward, Vector3.up);
-            float forwardAcceleration = Vector3.Dot(rootAcceleration, facing.normalized);
-            float leanDegrees = lean * walk + Mathf.Clamp(forwardAcceleration, -6f, 10f);
-            Quaternion upright = Quaternion.LookRotation(facing.normalized, Vector3.up) * Quaternion.AngleAxis(leanDegrees, Vector3.right);
+            // Lean into the direction of travel (and of acceleration), back while winding up a throw,
+            // forward as it lets go.
+            Quaternion facing = Facing();
+            Vector3 accel = Quaternion.Inverse(facing) * rootAcceleration;
+            float leanForward = lean * walk * move.z + Mathf.Clamp(accel.z, -6f, 10f)
+                                - throwWindUp * throwCharge + (throwSwingTimer > 0f ? throwLunge : 0f);
+            leanForward += CarryLean(facing * Vector3.forward);
+            float leanSide = lean * walk * move.x + Mathf.Clamp(accel.x, -6f, 6f);
+            Quaternion upright = facing * Quaternion.AngleAxis(leanForward, Vector3.right) * Quaternion.AngleAxis(-leanSide, Vector3.forward);
 
             // Stack the upper body over the hips: each torso part is pulled toward where it sits above the
             // hips in the rest pose (turned to the facing and lean). Forces through the joints right the
@@ -342,6 +391,7 @@ namespace Roadkill
             float s = Mathf.Sin(phase), c = Mathf.Cos(phase);
             float t = Time.time;
             float idle = 1f - walk * 0.5f;
+            float sideways = Mathf.Abs(move.x);
 
             foreach (var p in parts)
             {
@@ -353,8 +403,11 @@ namespace Roadkill
                 float wob = wobbleAmount * 6f * idle;
                 float nx = (Mathf.PerlinNoise(t * 0.8f, p.seed) - 0.5f) * 2f * wob;
                 float nz = (Mathf.PerlinNoise(p.seed, t * 0.8f) - 0.5f) * 2f * wob;
-                // Positive angles about the character's right swing a limb backward.
-                float aboutRight = nx, aboutForward = nz, aboutUp = 0f;
+                // Positive angles about the character's right swing a limb backward. The stride swings about
+                // the axis across the direction of travel instead: right when walking forward, the forward
+                // axis when side-stepping, reversed when walking backwards.
+                float aboutRight = nx, aboutForward = nz, aboutUp = 0f, stride = 0f;
+                Vector3 strideAxis = p.right * move.z - p.forward * move.x;
 
                 switch (p.role)
                 {
@@ -376,7 +429,8 @@ namespace Roadkill
                         aboutForward *= 1f + 3f * headFloppiness;
                         break;
                     case Role.UpperLeg:
-                        aboutRight += legSign * s * legSwing * walk + thrash;
+                        stride = legSign * s * legSwing * walk * Mathf.Lerp(1f, sideStepScale, sideways);
+                        aboutRight += thrash;
                         break;
                     case Role.LowerLeg:
                         aboutRight += swing * kneeBend * walk + 6f + air * (25f + Mathf.Abs(thrash) * 0.6f);
@@ -385,17 +439,20 @@ namespace Roadkill
                         aboutRight -= swing * 12f * walk;   // toes drop on the swing: shuffle
                         break;
                     case Role.UpperArm:
-                        aboutRight += -legSign * s * armSwing * walk + thrash;
+                        stride = -legSign * s * armSwing * walk * Mathf.Lerp(1f, 0.3f, sideways);   // arms barely swing on a side-step
+                        aboutRight += thrash;
                         aboutForward += -p.side * (armHang - air * 75f);          // hang by the sides, fly up when airborne
                         break;
                     case Role.LowerArm:
-                        aboutRight -= elbowBend + Mathf.Max(0f, -legSign * s) * elbowBend * walk + Mathf.Abs(thrash) * 0.5f;
+                        float bend = elbowBend + Mathf.Max(0f, -legSign * s) * elbowBend * walk + Mathf.Abs(thrash) * 0.5f;
+                        aboutRight -= Mathf.Lerp(bend, 8f, reachWeight[p.side < 0f ? 0 : 1]);   // reaching: arm almost straight
                         break;
                     case Role.Hand:
                         aboutRight *= 2f;
                         break;
                 }
-                Quaternion offset = Quaternion.AngleAxis(aboutUp, p.up) * Quaternion.AngleAxis(aboutForward, p.forward) * Quaternion.AngleAxis(aboutRight, p.right);
+                Quaternion offset = Quaternion.AngleAxis(stride, strideAxis) * Quaternion.AngleAxis(aboutUp, p.up)
+                                    * Quaternion.AngleAxis(aboutForward, p.forward) * Quaternion.AngleAxis(aboutRight, p.right);
                 SetTarget(p, offset * p.startLocal);
             }
         }
@@ -410,10 +467,10 @@ namespace Roadkill
             float s = weight * (1f - air) * (staggerTimer > 0f ? 0.5f : 1f);
             if (s <= 0f) return;
             float walk = Mathf.Clamp01(speed / fullStrideSpeed);
-            Vector3 facing = Vector3.ProjectOnPlane(root.forward, Vector3.up);
-            if (facing.sqrMagnitude < 0.001f) return;
-            facing.Normalize();
-            Vector3 right = Vector3.Cross(Vector3.up, facing);
+            Quaternion frame = Facing();
+            Vector3 right = frame * Vector3.right;
+            Vector3 travel = frame * move;                                          // step along the direction of travel
+            float stepScale = stepLength * walk * Mathf.Lerp(1f, sideStepScale, Mathf.Abs(move.x));
             float sin = Mathf.Sin(phase), cos = Mathf.Cos(phase);
             Vector3 ground = new Vector3(hips.body.position.x, root.position.y, hips.body.position.z);
 
@@ -422,14 +479,65 @@ namespace Roadkill
                 if (p.role != Role.Foot) continue;
                 float legSign = p.side < 0f ? 1f : -1f;
                 float swing = Mathf.Max(0f, -legSign * cos);
-                float ahead = -legSign * sin * stepLength * walk;
-                Vector3 target = ground + facing * ahead + right * (p.side * stanceWidth)
+                float ahead = -legSign * sin * stepScale;
+                Vector3 target = ground + travel * ahead + right * (p.side * stanceWidth)
                                  + Vector3.up * (p.restPosition.y + swing * stepHeight * walk);
-                Vector3 velocity = rootVelocity + facing * (-legSign * cos * stepLength * walk * phaseRate);
+                Vector3 velocity = rootVelocity + travel * (-legSign * cos * stepScale * phaseRate);
                 Vector3 pull = (target - p.body.position) * footSpring + (velocity - p.body.linearVelocity) * footDamping;
                 pull = Vector3.ClampMagnitude(pull, maxFootAcceleration);
                 float mass = p.body.mass + p.joint.connectedBody.mass;   // foot and shin
                 p.body.AddForce(pull * (mass * s), ForceMode.Force);
+            }
+        }
+
+        /// <summary>Lean toward a held object that is out of arm's reach in front, so he strains to hold it out.</summary>
+        float CarryLean(Vector3 forward)
+        {
+            float beyond = 0f;
+            for (int i = 0; i < 2; i++)
+            {
+                if (!reaching[i] || hands[i] == null) continue;
+                Vector3 to = reachTargets[i] - upperArms[i].body.position;
+                if (Vector3.Dot(to, forward) <= 0f) continue;
+                beyond = Mathf.Max(beyond, (to.magnitude - ReachLength(i)) * reachWeight[i]);
+            }
+            return Mathf.Clamp(beyond * carryLeanPerMetre, 0f, maxCarryLean) * (1f - throwCharge);
+        }
+
+        /// <summary>The capsule's yaw: the character's frame for gait, lean and reach.</summary>
+        Quaternion Facing()
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(root.forward, Vector3.up);
+            if (forward.sqrMagnitude < 0.001f) forward = Vector3.ProjectOnPlane(hips.body.rotation * Quaternion.Inverse(hips.restRotation) * Vector3.forward, Vector3.up);
+            return forward.sqrMagnitude < 0.001f ? Quaternion.identity : Quaternion.LookRotation(forward.normalized, Vector3.up);
+        }
+
+        /// <summary>
+        /// Hands onto what they hold: the wrist is pulled so the palm lands on the grip point (within arm's
+        /// reach of the shoulder). Winding up a throw lifts the hands overhead; the throw flings them forward.
+        /// </summary>
+        void Reach()
+        {
+            Vector3 forward = Facing() * Vector3.forward;
+            for (int i = 0; i < 2; i++)
+            {
+                var hand = hands[i];
+                if (hand == null || upperArms[i] == null || reachWeight[i] <= 0f) continue;
+                if (!reaching[i] && throwSwingTimer <= 0f) continue;   // letting go: the arm just eases back
+                Vector3 shoulder = upperArms[i].body.position;
+                float armLength = Vector3.Distance(upperArms[i].restPosition, hand.restPosition);
+                Vector3 target = reaching[i] ? reachTargets[i] : shoulder + forward * armLength;
+                if (throwCharge > 0f) target = Vector3.Lerp(target, shoulder + Vector3.up * armLength - forward * 0.15f, throwCharge * 0.8f);
+                if (throwSwingTimer > 0f) target = shoulder + forward * armLength + Vector3.up * 0.05f;
+
+                Vector3 offset = target - shoulder;
+                float distance = offset.magnitude;
+                Vector3 direction = distance > 0.0001f ? offset / distance : forward;
+                Vector3 wrist = shoulder + direction * Mathf.Clamp(distance - 0.08f, 0.1f, armLength);   // the palm, not the wrist, touches
+                Vector3 pull = (wrist - hand.body.position) * reachSpring + (rootVelocity - hand.body.linearVelocity) * reachDamping;
+                pull = Vector3.ClampMagnitude(pull, maxReachAcceleration);
+                float mass = hand.body.mass + lowerArms[i].body.mass + upperArms[i].body.mass * 0.5f;
+                hand.body.AddForce(pull * (mass * weight * reachWeight[i]), ForceMode.Force);
             }
         }
 
@@ -514,6 +622,31 @@ namespace Roadkill
 
         /// <summary>Remote copies: limp while the owner's player is ragdolled.</summary>
         public void FollowRootRagdoll(bool ragdolled) => rootLimp = ragdolled;
+
+        /// <summary>Hand 0 (left) or 1 (right): reach for a world point (a grip on a held object), or let go.</summary>
+        public void SetHandTarget(int hand, bool active, Vector3 worldPoint)
+        {
+            if (hand < 0 || hand > 1) return;
+            reaching[hand] = active;
+            reachTargets[hand] = worldPoint;
+        }
+
+        /// <summary>Shoulder of hand 0 (left) or 1 (right), to find the nearest grip on a held object.</summary>
+        public Vector3 ShoulderPosition(int hand) => upperArms[Mathf.Clamp(hand, 0, 1)].body.position;
+
+        /// <summary>0..1 while a throw charges: he leans back and lifts the load overhead.</summary>
+        public void SetThrowCharge(float charge) => throwCharge = Mathf.Clamp01(charge);
+
+        /// <summary>Let go of a throw: lunge forward and fling both arms.</summary>
+        public void Throw()
+        {
+            throwCharge = 0f;
+            throwSwingTimer = throwSwingSeconds;
+            if (!simulated) return;
+            Vector3 fling = Facing() * new Vector3(0f, 0.25f, 1f) * 4f;
+            foreach (var hand in hands)
+                if (hand != null) hand.body.AddForce(fling, ForceMode.VelocityChange);
+        }
 
         /// <summary>Where the head should look (world rotation of the view).</summary>
         public void SetLook(Quaternion view) { look = view; hasLook = true; }

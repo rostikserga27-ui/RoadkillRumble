@@ -10,9 +10,9 @@ namespace Roadkill
 {
     /// <summary>
     /// Scripted check of the active ragdoll in the RagdollTest scene: presses the real keys (through the
-    /// Input System, so PlayerMotor moves exactly as when you play) to idle, walk, sprint-jump, walk off
-    /// the ramp ledge, run down the slope, drop on the bouncy pad, get hit by the box cannon, get
-    /// launched and play possum. Every physics step it measures joint stretch, NaNs, floor clipping and
+    /// Input System, so PlayerMotor moves exactly as when you play) to idle, walk, strafe, walk
+    /// diagonally and backwards, sprint-jump, walk off the ramp ledge, run down the slope, drop on the
+    /// bouncy pad, grab and throw a crate, get hit by the box cannon, get launched and play possum. Every physics step it measures joint stretch, NaNs, floor clipping and
     /// knees/elbows folding the wrong way; it logs "RK-RAGDOLL" lines and a PASS/FAIL summary.
     /// </summary>
     public class RagdollAutotest : MonoBehaviour
@@ -30,7 +30,9 @@ namespace Roadkill
 
         // Running measurements (reset per phase).
         float maxStretch, minKnee, minElbow, maxSpin, jitterSum, hipHeightSum, tiltSum, maxTilt, legLagSum, feetTrailSum;
-        int groundedSamples;
+        int groundedSamples, crossedSamples, walkingSamples;
+        float remoteReachSum;
+        int remoteReachSamples;
         int samples, nanFrames, clipFrames, airborneFrames, activeSamples;
         string spinBone = "";
         // The remote-player stand-in, measured over the whole run.
@@ -63,6 +65,17 @@ namespace Roadkill
             Begin(); yield return Hold(3f, Key.W);
             End("walk", checkGait: true);
 
+            Place(new Vector3(-12f, 0.05f, -16f), Vector3.forward);
+            yield return Hold(0.5f);
+            Begin(); yield return Hold(2.5f, Key.D);
+            End("strafe right", checkTravel: true);
+
+            Begin(); yield return Hold(2.5f, Key.W, Key.A);
+            End("walk diagonally", checkTravel: true);
+
+            Begin(); yield return Hold(2f, Key.S);
+            End("walk backwards", checkTravel: true);
+
             Begin();
             yield return Hold(0.8f, Key.W, Key.LeftShift);
             yield return Hold(0f, Key.W, Key.LeftShift, Key.Space);   // a tap: a few frames
@@ -83,6 +96,42 @@ namespace Roadkill
             Place(new Vector3(0f, 3f, -6f), Vector3.forward);
             Begin(); yield return Hold(4f);
             End("drop on the bouncy pad");
+
+            Place(new Vector3(-12f, 0.05f, -3f), Vector3.forward);
+            var crate = builder.SpawnCrate(new Vector3(-12f, 0.3f, -2.1f));
+            yield return Hold(1f);
+            Begin();
+            bool grabbed = builder.TestHands.Grab(0) & builder.TestHands.Grab(1);
+            yield return Hold(1.2f);
+            // The game holds loads 0.9 m+ in front of the eyes, often beyond the fisherman's arms: then the
+            // arm must be stretched out and pointing at the grip; within reach the hand must be on it.
+            float reachError = 0f, aimError = 0f;
+            for (int i = 0; i < 2; i++)
+            {
+                Vector3 shoulder = body.ShoulderPosition(i), grip = builder.TestHands.Grip(i);
+                Vector3 palm = bones[i == 0 ? "LeftHand" : "RightHand"].position;
+                float reachable = body.ReachLength(i);
+                if (Vector3.Distance(shoulder, grip) <= reachable) reachError = Mathf.Max(reachError, Vector3.Distance(palm, grip) - 0.08f);
+                else
+                {
+                    aimError = Mathf.Max(aimError, Vector3.Angle(palm - shoulder, grip - shoulder));
+                    reachError = Mathf.Max(reachError, reachable * 0.85f - Vector3.Distance(palm, shoulder));
+                }
+            }
+            yield return Hold(0.9f, Key.G);
+            float charge = builder.TestHands.ThrowCharge;
+            yield return Hold(0f);                                   // G comes up: the throw
+            bool flung = body.IsThrowing;
+            float crateSpeed = crate.linearVelocity.magnitude;
+            yield return Hold(1.5f);
+            End("grab and throw");
+            Log($"grab and throw: grabbed {grabbed}, reach short by {Mathf.Max(0f, reachError) * 100f:0} cm, arms off the grip by {aimError:0} deg, charge {charge:0.00}, flung {flung}, crate left at {crateSpeed:0.0} m/s");
+            if (!grabbed) failures.Add("grab: nothing grabbed");
+            if (reachError > 0.15f) failures.Add($"grab: hands fell {reachError * 100f:0} cm short of what they hold");
+            if (aimError > 30f) failures.Add($"grab: arms pointed {aimError:0} deg away from the grip");
+            if (!flung) failures.Add("throw: the body did not fling");
+            if (crateSpeed < 3f) failures.Add($"throw: crate only left at {crateSpeed:0.0} m/s");
+            Destroy(crate.gameObject, 3f);
 
             Place(new Vector3(-4f, 0.05f, -4.5f), Vector3.back);
             yield return Hold(1f);
@@ -162,10 +211,11 @@ namespace Roadkill
             minKnee = minElbow = float.MaxValue;
             samples = nanFrames = clipFrames = airborneFrames = activeSamples = groundedSamples = 0;
             legLagSum = feetTrailSum = 0f;
+            crossedSamples = walkingSamples = 0;
             spinBone = "";
         }
 
-        void End(string phase, bool checkJitter = false, bool checkGait = false, bool expectAirborne = false, bool expectRecovered = false)
+        void End(string phase, bool checkJitter = false, bool checkGait = false, bool expectAirborne = false, bool expectRecovered = false, bool checkTravel = false)
         {
             float jitter = samples > 0 ? jitterSum / samples : 0f;
             float hips = samples > 0 ? hipHeightSum / samples : 0f;
@@ -188,7 +238,15 @@ namespace Roadkill
             if (checkGait && body.Speed < 2f) failures.Add($"walk: body only reached {body.Speed:0.0} m/s");
             if (checkGait && legLag > 15f) failures.Add($"walk: legs dragged behind the gait by {legLag:0} deg");
             if ((checkGait || checkJitter) && feetTrail > 0.2f) failures.Add($"{phase}: feet trail {feetTrail * 100f:0} cm behind the hips (towed, not walking)");
-            if ((checkGait || checkJitter) && (tilt > 25f || maxTilt > 60f)) failures.Add($"{phase}: torso tipped (avg {tilt:0}, max {maxTilt:0} deg)");
+            if ((checkGait || checkJitter || checkTravel) && (tilt > 25f || maxTilt > 60f)) failures.Add($"{phase}: torso tipped (avg {tilt:0}, max {maxTilt:0} deg)");
+            if (checkTravel)
+            {
+                float crossed = walkingSamples > 0 ? (float)crossedSamples / walkingSamples : 0f;
+                Log($"{phase}: feet {feetTrail * 100f:0} cm behind the hips along the travel, crossed {crossed * 100f:0}% of steps, speed {body.Speed:0.0}");
+                if (feetTrail > 0.2f) failures.Add($"{phase}: feet trail {feetTrail * 100f:0} cm behind the travel (towed, not stepping)");
+                if (crossed > 0.15f) failures.Add($"{phase}: feet crossed {crossed * 100f:0}% of the time");
+                if (body.Speed < 1.5f) failures.Add($"{phase}: body only reached {body.Speed:0.0} m/s");
+            }
             if (expectAirborne && airborneFrames == 0) failures.Add($"{phase}: never left the ground");
             if (expectRecovered && (body.IsLimp || motor.IsRagdolled || body.ActiveWeight < 0.99f || !body.IsUpright))
                 failures.Add($"{phase}: had not recovered");
@@ -200,8 +258,11 @@ namespace Roadkill
             if (builder.Remote == null) return;
             float tilt = remoteActive > 0 ? remoteTiltSum / remoteActive : 0f;
             float lag = remoteActive > 0 ? remoteLagSum / remoteActive : 0f;
+            float reach = remoteReachSamples > 0 ? remoteReachSum / remoteReachSamples : 0f;
             Log($"remote player view: torso tilt avg {tilt:0} deg, hips lag {lag * 100f:0} cm, stretch {remoteMaxStretch * 100f:0.0} cm, " +
-                $"knockdowns {remoteLimpEpisodes}, recovered {remoteRecoveries}");
+                $"knockdowns {remoteLimpEpisodes}, recovered {remoteRecoveries}, hands {reach * 100f:0} cm from the carried box, throws {builder.Remote.Throws}");
+            if (remoteReachSamples > 0 && reach > 0.25f) failures.Add($"remote: hands {reach * 100f:0} cm away from the box it carries");
+            if (builder.Remote.Throws == 0) failures.Add("remote: never threw its box");
             if (tilt > 25f) failures.Add($"remote: torso tipped (avg {tilt:0} deg)");
             if (lag > 0.5f) failures.Add($"remote: body trails its capsule by {lag:0.00} m");
             if (remoteMaxStretch > 0.05f) failures.Add($"remote: joints stretched {remoteMaxStretch * 100f:0.0} cm");
@@ -224,6 +285,17 @@ namespace Roadkill
             if (!r.IsLimp && remoteWasLimp) remoteRecoveries++;
             remoteWasLimp = r.IsLimp;
             if (r.IsLimp || r.ActiveWeight < 0.99f) return;
+            var box = remote.CarriedBox;
+            if (box != null && r.ActiveWeight > 0.99f)
+            {
+                var boxCollider = box.GetComponent<Collider>();
+                foreach (var p in r.parts)
+                    if (p.role == ActiveRagdollController.Role.Hand)
+                    {
+                        remoteReachSum += Vector3.Distance(p.body.position, boxCollider.ClosestPoint(p.body.position));
+                        remoteReachSamples++;
+                    }
+            }
             foreach (var p in r.parts)
                 if (p.role == ActiveRagdollController.Role.Chest)
                     remoteTiltSum += Vector3.Angle(p.body.rotation * Quaternion.Inverse(p.restRotation) * Vector3.up, Vector3.up);
@@ -237,6 +309,8 @@ namespace Roadkill
             var wait = new WaitForFixedUpdate();
             remoteTiltSum = remoteLagSum = remoteMaxStretch = 0f;
             remoteActive = remoteLimpEpisodes = remoteRecoveries = 0;
+            remoteReachSum = 0f;
+            remoteReachSamples = 0;
             remoteWasLimp = false;
             while (Running)
             {
@@ -271,11 +345,19 @@ namespace Roadkill
                     tiltSum += tilt;
                     maxTilt = Mathf.Max(maxTilt, tilt);
                     activeSamples++;
+                    if (body.IsGrounded && body.Speed > 1f)
+                    {
+                        // Feet crossing: the left foot ends up right of the right foot (in his own frame).
+                        Quaternion inverse = Quaternion.Inverse(Quaternion.LookRotation(Vector3.ProjectOnPlane(root.forward, Vector3.up).normalized));
+                        float leftX = (inverse * bones["LeftFoot"].position).x, rightX = (inverse * bones["RightFoot"].position).x;
+                        walkingSamples++;
+                        if (leftX > rightX - 0.02f) crossedSamples++;
+                    }
                     foreach (var p in body.parts)
                     {
                         if (p.role == ActiveRagdollController.Role.UpperLeg) legLagSum += 0.5f * (SwingAngle(p, true) - SwingAngle(p, false));
                         if (p.role == ActiveRagdollController.Role.Foot)
-                            feetTrailSum += 0.5f * Vector3.Dot(body.Hips.position - p.body.position, Vector3.ProjectOnPlane(root.forward, Vector3.up).normalized);
+                            feetTrailSum += 0.5f * Vector3.Dot(body.Hips.position - p.body.position, Travel());
                     }
                     minKnee = Mathf.Min(minKnee, Knee("Left"), Knee("Right"));
                     minElbow = Mathf.Min(minElbow, Elbow("Left"), Elbow("Right"));
@@ -322,6 +404,9 @@ namespace Roadkill
             return angle * Vector3.Dot(axis, p.right);
         }
 
+        /// <summary>The body's direction of travel in the world.</summary>
+        Vector3 Travel() => Quaternion.LookRotation(Vector3.ProjectOnPlane(root.forward, Vector3.up).normalized) * body.MoveDirection;
+
         /// <summary>A character axis (in root space at rest) as a bone carries it now.</summary>
         Vector3 BodyAxis(Rigidbody bone, Vector3 characterAxis)
         {
@@ -333,7 +418,7 @@ namespace Roadkill
         static void Log(string message) => Debug.Log($"RK-RAGDOLL {message}");
 
 #if !ENABLE_INPUT_SYSTEM
-        enum Key { W, LeftShift, Space, C }
+        enum Key { W, A, S, D, G, LeftShift, Space, C }
 #endif
     }
 }

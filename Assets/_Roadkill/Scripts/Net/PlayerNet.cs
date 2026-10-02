@@ -41,6 +41,7 @@ namespace Roadkill
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         float lastKnockdownTime = -99f;
+        int lastThrowCount;
         Quaternion headRestRelative = Quaternion.identity;
 
         void Awake()
@@ -73,6 +74,7 @@ namespace Roadkill
             foreach (var r in tintRenderers) r.material.color = color;
             if (palette != null) palette.Apply(color);
             name = mine ? "Player (you)" : $"Player {OwnerClientId}";
+            if (Hands != null) lastThrowCount = Hands.ThrowCount;   // joining late is not a throw
 
             if (mine)
             {
@@ -88,6 +90,7 @@ namespace Roadkill
         void Update()
         {
             if (!IsSpawned) return;
+            DriveBodyHands();
             if (IsOwner)
             {
                 if (ragdolled.Value != Motor.IsRagdolled) ragdolled.Value = Motor.IsRagdolled;
@@ -98,6 +101,24 @@ namespace Roadkill
             {
                 body.FollowRootRagdoll(ragdolled.Value);
                 body.SetLook(Hands.ViewRotation);
+            }
+        }
+
+        /// <summary>The body's hands go to what this player holds; throws wind up and fling (on every peer).</summary>
+        void DriveBodyHands()
+        {
+            if (body == null || Hands == null || Hands.Left == null) return;
+            for (int i = 0; i < 2; i++)
+            {
+                var hand = i == 0 ? Hands.Left : Hands.Right;
+                bool holding = Hands.TryGetGrip(hand, body.ShoulderPosition(i), out Vector3 grip);
+                body.SetHandTarget(i, holding, grip);
+            }
+            body.SetThrowCharge(Hands.VisibleThrowCharge);
+            if (Hands.ThrowCount != lastThrowCount)
+            {
+                lastThrowCount = Hands.ThrowCount;
+                body.Throw();
             }
         }
 

@@ -108,9 +108,12 @@ namespace Roadkill
 
         void LateUpdate()
         {
-            if (!IsSpawned || IsOwner || head == null) return;
+            if (!IsSpawned || head == null) return;
             if (ragdoll != null && ragdoll.IsActive) return;
-            head.rotation = Hands.ViewRotation * headRestRelative;
+            // Eased, so a head left twisted by the ragdoll turns back to the view instead of snapping.
+            // The owner needs it too: their body shows in the fall camera.
+            Quaternion aim = Hands.ViewRotation * headRestRelative;
+            head.rotation = Quaternion.Slerp(head.rotation, aim, 1f - Mathf.Exp(-14f * Time.deltaTime));
         }
 
         public override void OnDestroy()

@@ -47,7 +47,7 @@ namespace Roadkill
             Player = GetComponentInParent<PlayerNet>();
             HipsHeight = root.transform.InverseTransformPoint(hips.position).y;
 
-            IgnoreOwnCollisions();
+            IgnoreOwnCollisions();   // in Awake the model is still in its rest pose
 
             restPositions = new Vector3[bodies.Length];
             restRotations = new Quaternion[bodies.Length];
@@ -74,11 +74,28 @@ namespace Roadkill
         void IgnoreOwnCollisions()
         {
             var capsule = root.GetComponent<Collider>();
-            foreach (var c in colliders)
+            foreach (var c in colliders) Physics.IgnoreCollision(capsule, c, true);
+            // Limbs collide with the rest of the body, so arms cannot sink into the torso. Bones sharing a
+            // joint are already exempt; pairs that overlap in the rest pose are too, or they would shove
+            // each other apart the moment the body goes limp.
+            if (restOverlaps == null) FindRestOverlaps();
+            foreach (var (a, b) in restOverlaps) Physics.IgnoreCollision(a, b, true);
+        }
+
+        System.Collections.Generic.List<(Collider, Collider)> restOverlaps;
+
+        void FindRestOverlaps()
+        {
+            restOverlaps = new System.Collections.Generic.List<(Collider, Collider)>();
+            for (int i = 0; i < colliders.Length; i++)
             {
-                Physics.IgnoreCollision(capsule, c, true);
-                // No self-collision: limb capsules overlap the torso at rest and would fight it.
-                foreach (var other in colliders) if (other != c) Physics.IgnoreCollision(c, other, true);
+                for (int j = i + 1; j < colliders.Length; j++)
+                {
+                    Collider a = colliders[i], b = colliders[j];
+                    if (Physics.ComputePenetration(a, a.transform.position, a.transform.rotation,
+                            b, b.transform.position, b.transform.rotation, out _, out float depth) && depth > 0.005f)
+                        restOverlaps.Add((a, b));
+                }
             }
         }
 

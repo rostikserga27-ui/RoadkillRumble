@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Roadkill
 {
-    /// <summary>Owner-only camera pullback while playing possum, including recovery.</summary>
+    /// <summary>Owner-only camera pullback whenever the player is down (possum or knocked over), including recovery.</summary>
     [DefaultExecutionOrder(200)]
     public class PossumCamera : MonoBehaviour
     {
@@ -51,7 +51,7 @@ namespace Roadkill
             if (player == null || !player.IsSpawned || !player.IsOwner) return;
             if (resetVersion != player.Motor.CameraResetVersion) ResetView();
 
-            if (player.Motor.IsPossum && !followingFall)
+            if (player.Motor.IsRagdolled && !followingFall)
             {
                 followingFall = IsTransitioning = true;
                 // Capture the viewing direction once; capsule tumbling must not roll the camera.

@@ -5,9 +5,10 @@ namespace Roadkill
 {
     /// <summary>
     /// Glue for a networked player. The owner simulates its own body (owner-authoritative
-    /// NetworkTransform), sees through its camera and hides its own body mesh; everyone else sees a
+    /// NetworkTransform), sees through its camera and shows its body during the possum camera; everyone else sees a
     /// kinematic copy whose head follows the owner's view and whose bones flop (RagdollRig) whenever
-    /// the owner is ragdolled. The server delivers knockdowns.
+    /// the owner is ragdolled. The owner's own ragdoll is simulated by PlayerMotor; copies pin theirs to
+    /// the networked capsule. The server delivers knockdowns.
     /// </summary>
     [DefaultExecutionOrder(100)]   // after CharacterAnimator, so the head aim wins
     public class PlayerNet : NetworkBehaviour
@@ -23,6 +24,7 @@ namespace Roadkill
         public PlayerMotor Motor { get; private set; }
         public HandsController Hands { get; private set; }
         public PlayerHealth Health { get; private set; }
+        public PossumCamera FallCamera { get; private set; }
 
         static readonly Color[] PlayerColors =
         {
@@ -59,11 +61,18 @@ namespace Roadkill
             var hud = GetComponent<DebugHud>();
             if (hud != null) hud.enabled = mine;
             foreach (var r in bodyRenderers) r.enabled = !mine;
-            // You never see your own body, and its bone colliders would trip your ground check.
+            // The owner sees the body during the possum camera transition. Its bone colliders only
+            // switch on while ragdolled, so they never trip the ground check or block the grab ray.
             if (mine)
             {
-                if (ragdoll != null) ragdoll.SetCollidersEnabled(false);
-                if (animator != null) animator.enabled = false;
+                if (ragdoll != null)
+                {
+                    ragdoll.collidersWhenIdle = false;
+                    ragdoll.SetCollidersEnabled(false);
+                }
+                if (animator != null) animator.enabled = true;
+                FallCamera = gameObject.AddComponent<PossumCamera>();
+                FallCamera.Initialize(this);
             }
 
             Color color = PlayerColors[(int)(OwnerClientId % (ulong)PlayerColors.Length)];
@@ -99,9 +108,19 @@ namespace Roadkill
 
         void LateUpdate()
         {
-            if (!IsSpawned || IsOwner || head == null) return;
+            if (!IsSpawned || head == null) return;
             if (ragdoll != null && ragdoll.IsActive) return;
-            head.rotation = Hands.ViewRotation * headRestRelative;
+            // Eased, so a head left twisted by the ragdoll turns back to the view instead of snapping.
+            // The owner needs it too: their body shows in the fall camera.
+            Quaternion aim = Hands.ViewRotation * headRestRelative;
+            head.rotation = Quaternion.Slerp(head.rotation, aim, 1f - Mathf.Exp(-14f * Time.deltaTime));
+        }
+
+        public override void OnDestroy()
+        {
+            // A ragdolled body lives outside the player hierarchy; do not leave it lying around.
+            if (ragdoll != null && ragdoll.IsActive) Destroy(ragdoll.gameObject);
+            base.OnDestroy();
         }
 
         /// <summary>Server only: knock this player down on their own machine.</summary>

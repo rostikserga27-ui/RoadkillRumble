@@ -7,7 +7,8 @@ namespace Roadkill
     /// Glue for a networked player. The owner simulates its own body (owner-authoritative
     /// NetworkTransform), sees through its camera and shows its body during the possum camera; everyone else sees a
     /// kinematic copy whose head follows the owner's view and whose bones flop (RagdollRig) whenever
-    /// the owner is ragdolled. The server delivers knockdowns.
+    /// the owner is ragdolled. The owner's own ragdoll is simulated by PlayerMotor; copies pin theirs to
+    /// the networked capsule. The server delivers knockdowns.
     /// </summary>
     [DefaultExecutionOrder(100)]   // after CharacterAnimator, so the head aim wins
     public class PlayerNet : NetworkBehaviour
@@ -60,11 +61,15 @@ namespace Roadkill
             var hud = GetComponent<DebugHud>();
             if (hud != null) hud.enabled = mine;
             foreach (var r in bodyRenderers) r.enabled = !mine;
-            // The owner sees the body during the possum camera transition. Keep cosmetic bone
-            // colliders disabled so showing it does not change gameplay physics.
+            // The owner sees the body during the possum camera transition. Its bone colliders only
+            // switch on while ragdolled, so they never trip the ground check or block the grab ray.
             if (mine)
             {
-                if (ragdoll != null) ragdoll.SetCollidersEnabled(false);
+                if (ragdoll != null)
+                {
+                    ragdoll.collidersWhenIdle = false;
+                    ragdoll.SetCollidersEnabled(false);
+                }
                 if (animator != null) animator.enabled = true;
                 FallCamera = gameObject.AddComponent<PossumCamera>();
                 FallCamera.Initialize(this);
@@ -106,6 +111,13 @@ namespace Roadkill
             if (!IsSpawned || IsOwner || head == null) return;
             if (ragdoll != null && ragdoll.IsActive) return;
             head.rotation = Hands.ViewRotation * headRestRelative;
+        }
+
+        public override void OnDestroy()
+        {
+            // A ragdolled body lives outside the player hierarchy; do not leave it lying around.
+            if (ragdoll != null && ragdoll.IsActive) Destroy(ragdoll.gameObject);
+            base.OnDestroy();
         }
 
         /// <summary>Server only: knock this player down on their own machine.</summary>

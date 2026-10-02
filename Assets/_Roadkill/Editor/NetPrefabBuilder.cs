@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "5";
+        const string BuildVersion = "6";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -128,20 +128,21 @@ namespace Roadkill.EditorTools
 
         // Ragdoll bones, parents before children: bone, the bone it points at, radius (m), mass (kg),
         // twist and swing limits (degrees). Hands, feet, neck and jaw ride on their parents.
+        // Masses add up to about the player's 70 kg, since the ragdoll is now the body props hit.
         static readonly (string bone, string toward, float radius, float mass, float twist, float swing)[] RagdollBones =
         {
-            ("Hips", "Spine", 0.13f, 3f, 15f, 15f),
-            ("Spine", "Chest", 0.12f, 2.5f, 15f, 20f),
-            ("Chest", "Neck", 0.13f, 2.5f, 15f, 20f),
-            ("Head", null, 0.19f, 2f, 30f, 40f),
-            ("UpperArm_L", "LowerArm_L", 0.05f, 0.8f, 60f, 70f),
-            ("LowerArm_L", "Hand_L", 0.045f, 0.6f, 80f, 15f),
-            ("UpperArm_R", "LowerArm_R", 0.05f, 0.8f, 60f, 70f),
-            ("LowerArm_R", "Hand_R", 0.045f, 0.6f, 80f, 15f),
-            ("UpperLeg_L", "LowerLeg_L", 0.07f, 2f, 40f, 50f),
-            ("LowerLeg_L", "Foot_L", 0.06f, 1.5f, 80f, 10f),
-            ("UpperLeg_R", "LowerLeg_R", 0.07f, 2f, 40f, 50f),
-            ("LowerLeg_R", "Foot_R", 0.06f, 1.5f, 80f, 10f),
+            ("Hips", "Spine", 0.13f, 10f, 15f, 15f),
+            ("Spine", "Chest", 0.12f, 8f, 15f, 20f),
+            ("Chest", "Neck", 0.13f, 8f, 15f, 20f),
+            ("Head", null, 0.19f, 6f, 30f, 40f),
+            ("UpperArm_L", "LowerArm_L", 0.05f, 2.5f, 60f, 70f),
+            ("LowerArm_L", "Hand_L", 0.045f, 2f, 80f, 15f),
+            ("UpperArm_R", "LowerArm_R", 0.05f, 2.5f, 60f, 70f),
+            ("LowerArm_R", "Hand_R", 0.045f, 2f, 80f, 15f),
+            ("UpperLeg_L", "LowerLeg_L", 0.07f, 7f, 40f, 50f),
+            ("LowerLeg_L", "Foot_L", 0.06f, 5f, 80f, 10f),
+            ("UpperLeg_R", "LowerLeg_R", 0.07f, 7f, 40f, 50f),
+            ("LowerLeg_R", "Foot_R", 0.06f, 5f, 80f, 10f),
         };
 
         static void BuildCharacterModel(GameObject player, Rigidbody playerBody, GameObject modelAsset, List<Renderer> renderers,

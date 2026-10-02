@@ -3,10 +3,11 @@ using UnityEngine;
 namespace Roadkill
 {
     /// <summary>
-    /// First-person physics body (GDD section 3). Moves a capsule rigidbody at the GDD speeds and
-    /// topples it into a ragdoll when struck, dropped from height or playing possum. The camera rides
-    /// the capsule, so a fall tumbles the view. A jointed multi-bone ragdoll replaces the capsule later;
-    /// the public API (EnterRagdoll, IsRagdolled, Respawn) is meant to stay the same.
+    /// First-person physics body (GDD section 3). Moves a capsule rigidbody at the GDD speeds. When
+    /// struck, dropped from height or playing possum, the character's bone ragdoll (RagdollRig) takes
+    /// over: the capsule turns into a collider-less ghost that follows the hips, so every limb touches
+    /// the world on its own, and the camera rides the head. Without a character model the capsule
+    /// itself topples, as before.
     /// </summary>
     [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
     public class PlayerMotor : MonoBehaviour
@@ -55,6 +56,12 @@ namespace Roadkill
         CapsuleCollider capsule;
         PlayerHealth health;
         HandsController hands;
+        RagdollRig ragdoll;
+        Transform head;
+        Vector3 eyeInHead;              // camera pivot in the head bone's space, rest pose
+        Quaternion pivotFromHead;
+        Vector3 pivotStandUpPosition;
+        Quaternion pivotStandUpRotation;
         PhysicsMaterial slideMaterial;
         PhysicsMaterial ragdollMaterial;
         float yaw;
@@ -74,6 +81,15 @@ namespace Roadkill
             capsule = GetComponent<CapsuleCollider>();
             health = GetComponent<PlayerHealth>();
             hands = GetComponent<HandsController>();
+            ragdoll = GetComponentInChildren<RagdollRig>(true);
+            var net = GetComponent<PlayerNet>();
+            head = net != null ? net.head : null;
+            if (ragdoll == null || head == null) ragdoll = null;
+            else
+            {
+                eyeInHead = head.InverseTransformPoint(cameraPivot.position);
+                pivotFromHead = Quaternion.Inverse(head.rotation) * cameraPivot.rotation;
+            }
 
             // Frictionless while walking so the capsule never sticks to walls; grippy while ragdolled.
             slideMaterial = new PhysicsMaterial("PlayerSlide")
@@ -125,7 +141,21 @@ namespace Roadkill
             }
 
             UpdateCrouch();
+            if (state == State.StandingUp && ragdoll != null)
+            {
+                // Bring the camera from the head back to the eyes.
+                float t = Mathf.SmoothStep(0f, 1f, standUpProgress);
+                cameraPivot.localPosition = Vector3.Lerp(pivotStandUpPosition, new Vector3(0f, standingEyeHeight, 0f), t);
+                cameraPivot.localRotation = Quaternion.Slerp(pivotStandUpRotation, Quaternion.identity, t);
+            }
             if (RkInput.ResetPressed) Respawn();
+        }
+
+        void LateUpdate()
+        {
+            // Down with a bone ragdoll: look out of the head, so the view tumbles with the body.
+            if (ragdoll != null && ragdoll.IsActive)
+                cameraPivot.SetPositionAndRotation(head.TransformPoint(eyeInHead), head.rotation * pivotFromHead);
         }
 
         void FixedUpdate()
@@ -136,11 +166,16 @@ namespace Roadkill
                 case State.Normal:
                     Move(dt);
                     break;
+                case State.Possum:
+                    FollowBody();
+                    break;
                 case State.Ragdoll:
+                    FollowBody();
                     ragdollElapsed += dt;
                     mashBoostTimer -= dt;
                     ragdollTimer -= dt * (mashBoostTimer > 0f ? 1f + mashRecoveryBonus : 1f);
-                    bool settled = rb.linearVelocity.sqrMagnitude < 2.25f || ragdollElapsed > 6f;
+                    Vector3 bodyVelocity = ragdoll != null ? ragdoll.Velocity : rb.linearVelocity;
+                    bool settled = bodyVelocity.sqrMagnitude < 2.25f || ragdollElapsed > 6f;
                     if (ragdollTimer <= 0f && settled && (health == null || !health.IsDown)) BeginStandUp();
                     break;
                 case State.StandingUp:
@@ -150,6 +185,13 @@ namespace Roadkill
                     if (standUpProgress >= 1f) state = State.Normal;
                     break;
             }
+        }
+
+        /// <summary>The ghost capsule trails the ragdoll's hips, so the network sends where the body is.</summary>
+        void FollowBody()
+        {
+            if (ragdoll == null || !ragdoll.IsActive) return;
+            rb.MovePosition(ragdoll.hips.position - Vector3.up * ragdoll.HipsHeight);
         }
 
         void Move(float dt)
@@ -245,7 +287,8 @@ namespace Roadkill
             if (state == State.Ragdoll || state == State.Possum)
             {
                 ragdollTimer = Mathf.Max(ragdollTimer, seconds);
-                rb.AddForce(velocityKick, ForceMode.VelocityChange);
+                if (ragdoll != null && ragdoll.IsActive) ragdoll.AddVelocity(velocityKick);
+                else rb.AddForce(velocityKick, ForceMode.VelocityChange);
                 return;
             }
 
@@ -256,10 +299,26 @@ namespace Roadkill
             jumpQueued = false;
             IsSprinting = false;
 
-            rb.constraints = RigidbodyConstraints.None;
-            capsule.sharedMaterial = ragdollMaterial;
             if (hands != null) hands.ReleaseAll();
 
+            if (ragdoll != null)
+            {
+                Vector3 velocity = rb.linearVelocity + velocityKick;
+                rb.linearVelocity = Vector3.zero;
+                rb.isKinematic = true;
+                rb.detectCollisions = false;
+                ragdoll.SetActive(true, velocity, pinned: false);
+                // Bones have no muscles, so the body crumples by itself; nudge the upper half so it
+                // falls over instead of folding straight down.
+                Vector3 fall = Vector3.ProjectOnPlane(velocityKick, Vector3.up);
+                fall = fall.sqrMagnitude > 0.01f ? fall.normalized
+                    : transform.forward * (Random.value < 0.5f ? 1f : -1f) + transform.right * Random.Range(-0.4f, 0.4f);
+                ragdoll.Topple(fall.normalized, possum ? 1.5f : 2.5f);
+                return;
+            }
+
+            rb.constraints = RigidbodyConstraints.None;
+            capsule.sharedMaterial = ragdollMaterial;
             rb.AddForce(velocityKick, ForceMode.VelocityChange);
             // Tip the capsule so it actually falls instead of balancing on its base.
             Vector3 tipAxis = velocityKick.sqrMagnitude > 0.01f
@@ -270,6 +329,11 @@ namespace Roadkill
 
         void BeginStandUp()
         {
+            if (ragdoll != null && ragdoll.IsActive)
+            {
+                BeginStandUpFromBody();
+                return;
+            }
             state = State.StandingUp;
             standUpProgress = 0f;
             standUpFrom = rb.rotation;
@@ -287,6 +351,42 @@ namespace Roadkill
             rb.position += Vector3.up * 0.15f;
         }
 
+        /// <summary>Put the capsule back on its feet where the body lies, facing the way the player last looked.</summary>
+        void BeginStandUpFromBody()
+        {
+            Vector3 hipsPosition = ragdoll.hips.position;
+            Vector3 feet = hipsPosition - Vector3.up * ragdoll.HipsHeight;
+            float nearest = float.MaxValue;
+            foreach (var hit in Physics.RaycastAll(hipsPosition + Vector3.up * 0.5f, Vector3.down, 3f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                var body = hit.collider.attachedRigidbody;
+                if (body == rb || (body != null && body.transform.IsChildOf(ragdoll.transform))) continue;
+                if (hit.distance < nearest) { nearest = hit.distance; feet = hit.point; }
+            }
+
+            // Move the capsule first: reattaching keeps the bones' world pose, and they blend home from there.
+            Vector3 position = feet + Vector3.up * 0.05f;
+            Quaternion rotation = Quaternion.Euler(0f, yaw, 0f);
+            Vector3 eyePosition = cameraPivot.position;
+            Quaternion eyeRotation = cameraPivot.rotation;
+            transform.SetPositionAndRotation(position, rotation);
+            cameraPivot.SetPositionAndRotation(eyePosition, eyeRotation);   // the view blends up from the head
+            rb.position = position;
+            rb.rotation = rotation;
+            ragdoll.SetActive(false);
+            rb.isKinematic = false;
+            rb.detectCollisions = true;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+
+            state = State.StandingUp;
+            standUpProgress = 0f;
+            standUpFrom = rotation;
+            pitch = 0f;
+            pivotStandUpPosition = cameraPivot.localPosition;
+            pivotStandUpRotation = cameraPivot.localRotation;
+        }
+
         public void Respawn()
         {
             CameraResetVersion++;
@@ -294,10 +394,17 @@ namespace Roadkill
             transform.SetPositionAndRotation(spawnPosition, spawnRotation);
             rb.position = spawnPosition;
             rb.rotation = spawnRotation;
+            if (ragdoll != null && ragdoll.IsActive)
+            {
+                ragdoll.SetActive(false, snapToRest: true);
+                rb.isKinematic = false;
+                rb.detectCollisions = true;
+            }
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
             yaw = spawnRotation.eulerAngles.y;
             pitch = 0f;
+            cameraPivot.localPosition = new Vector3(0f, standingEyeHeight, 0f);
             cameraPivot.localRotation = Quaternion.identity;
             state = State.Normal;
             rb.constraints = RigidbodyConstraints.FreezeRotation;

@@ -74,7 +74,10 @@ namespace Roadkill
                 return;
             }
 
-            Vector3 focus = transform.position + Vector3.up * 0.65f;
+            var ragdoll = player.ragdoll;
+            Vector3 focus = ragdoll != null && ragdoll.IsActive
+                ? ragdoll.hips.position + Vector3.up * 0.2f
+                : transform.position + Vector3.up * 0.65f;
             Vector3 targetPosition = followingFall
                 ? focus + Vector3.up * height - orbit * Vector3.forward * distance
                 : firstPosition;
@@ -125,6 +128,8 @@ namespace Roadkill
                 length, ~0, QueryTriggerInteraction.Ignore))
             {
                 if (hit.collider.transform.IsChildOf(transform)) continue;
+                // While down, the body lives outside the player hierarchy.
+                if (player.ragdoll != null && hit.collider.transform.IsChildOf(player.ragdoll.transform)) continue;
                 allowed = Mathf.Min(allowed, Mathf.Max(0f, hit.distance - 0.05f));
             }
             return origin + offset / length * allowed;

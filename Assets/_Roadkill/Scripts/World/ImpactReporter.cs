@@ -37,6 +37,12 @@ namespace Roadkill
             if (network == null || !network.IsServer || body.isKinematic || body.mass <= massThreshold) return;
 
             var player = collision.collider.GetComponentInParent<PlayerNet>();
+            if (player == null)
+            {
+                // A ragdolled body is detached from its player; its rig remembers whose it is.
+                var rig = collision.collider.GetComponentInParent<RagdollRig>();
+                if (rig != null) player = rig.Player;
+            }
             if (player == null || !player.IsSpawned) return;
             if (player.Hands.IsHolding(body)) return;   // your own load bumping you is not a hit
 

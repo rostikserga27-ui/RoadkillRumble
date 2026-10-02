@@ -48,6 +48,7 @@ namespace Roadkill
         public bool IsSprinting { get; private set; }
         public bool IsRagdolled => state != State.Normal;
         public bool IsPossum => state == State.Possum;
+        public int CameraResetVersion { get; private set; }
 
         State state = State.Normal;
         Rigidbody rb;
@@ -288,6 +289,7 @@ namespace Roadkill
 
         public void Respawn()
         {
+            CameraResetVersion++;
             if (hands != null) hands.ReleaseAll();
             transform.SetPositionAndRotation(spawnPosition, spawnRotation);
             rb.position = spawnPosition;

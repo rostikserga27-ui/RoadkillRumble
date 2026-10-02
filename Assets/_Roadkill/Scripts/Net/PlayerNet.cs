@@ -5,7 +5,7 @@ namespace Roadkill
 {
     /// <summary>
     /// Glue for a networked player. The owner simulates its own body (owner-authoritative
-    /// NetworkTransform), sees through its camera and hides its own body mesh; everyone else sees a
+    /// NetworkTransform), sees through its camera and shows its body during the possum camera; everyone else sees a
     /// kinematic copy whose head follows the owner's view and whose bones flop (RagdollRig) whenever
     /// the owner is ragdolled. The server delivers knockdowns.
     /// </summary>
@@ -23,6 +23,7 @@ namespace Roadkill
         public PlayerMotor Motor { get; private set; }
         public HandsController Hands { get; private set; }
         public PlayerHealth Health { get; private set; }
+        public PossumCamera FallCamera { get; private set; }
 
         static readonly Color[] PlayerColors =
         {
@@ -59,11 +60,14 @@ namespace Roadkill
             var hud = GetComponent<DebugHud>();
             if (hud != null) hud.enabled = mine;
             foreach (var r in bodyRenderers) r.enabled = !mine;
-            // You never see your own body, and its bone colliders would trip your ground check.
+            // The owner sees the body during the possum camera transition. Keep cosmetic bone
+            // colliders disabled so showing it does not change gameplay physics.
             if (mine)
             {
                 if (ragdoll != null) ragdoll.SetCollidersEnabled(false);
-                if (animator != null) animator.enabled = false;
+                if (animator != null) animator.enabled = true;
+                FallCamera = gameObject.AddComponent<PossumCamera>();
+                FallCamera.Initialize(this);
             }
 
             Color color = PlayerColors[(int)(OwnerClientId % (ulong)PlayerColors.Length)];

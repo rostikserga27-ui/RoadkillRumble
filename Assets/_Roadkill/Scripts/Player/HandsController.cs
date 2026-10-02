@@ -187,7 +187,9 @@ namespace Roadkill
             if (!IsSpawned || !IsOwner) return;
             PublishView();
 
-            bool canAct = (motor == null || !motor.IsRagdolled) && Cursor.lockState == CursorLockMode.Locked;
+            var fallCamera = GetComponent<PossumCamera>();
+            bool cameraReady = fallCamera == null || !fallCamera.IsTransitioning;
+            bool canAct = cameraReady && (motor == null || !motor.IsRagdolled) && Cursor.lockState == CursorLockMode.Locked;
             HandleHand(Left, canAct && RkInput.LeftHandHeld);
             HandleHand(Right, canAct && RkInput.RightHandHeld);
 
@@ -208,7 +210,8 @@ namespace Roadkill
 
         void PublishView()
         {
-            Transform view = viewCamera.transform;
+            // Network aiming stays at the eyes even while the presentation camera pulls back.
+            Transform view = motor != null && motor.cameraPivot != null ? motor.cameraPivot : viewCamera.transform;
             if ((viewPosition.Value - view.position).sqrMagnitude > 0.0001f) viewPosition.Value = view.position;
             if (Quaternion.Angle(viewRotation.Value, view.rotation) > 0.2f) viewRotation.Value = view.rotation;
         }

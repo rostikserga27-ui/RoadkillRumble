@@ -138,6 +138,7 @@ namespace Roadkill
             Body.root = go.transform;
             Body.rootBody = body;
             Body.motor = Motor;
+            Motor.body = Body;
             var palette = model.GetComponent<PaletteTint>();
             if (palette != null) palette.Apply(new Color(1f, 0.45f, 0.08f));   // player 1's orange, as in the game
 

@@ -111,9 +111,10 @@ namespace Roadkill.EditorTools
                 body.linearDamping = spec.role == Role.Foot ? 1.5f : 0.05f;   // flip-flops drag: he shuffles
                 body.angularDamping = spec.angularDamping;
                 body.interpolation = RigidbodyInterpolation.Interpolate;
+                // Pelvis and chest fully continuous; every other bone speculative, so a hard landing after a
+                // launch cannot push a limb through the floor.
                 body.collisionDetectionMode = spec.role == Role.Hips || spec.role == Role.Chest ? CollisionDetectionMode.ContinuousDynamic
-                    : spec.role == Role.Foot || spec.role == Role.Hand ? CollisionDetectionMode.ContinuousSpeculative
-                    : CollisionDetectionMode.Discrete;
+                    : CollisionDetectionMode.ContinuousSpeculative;
 
                 var collider = spec.shape == Shape.Box
                     ? FitBox(bone, points, spec.role == Role.Foot)

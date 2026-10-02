@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "8";
+        const string BuildVersion = "9";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -130,7 +130,11 @@ namespace Roadkill.EditorTools
             var motor = go.AddComponent<PlayerMotor>();
             motor.cameraPivot = pivot;
             motor.enabled = false;
-            if (ragdoll != null) ragdoll.motor = motor;
+            if (ragdoll != null)
+            {
+                ragdoll.motor = motor;
+                motor.body = ragdoll;   // takes over while the player is down
+            }
             var hands = go.AddComponent<HandsController>();
             hands.viewCamera = cam;
             hands.handModel = AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath);

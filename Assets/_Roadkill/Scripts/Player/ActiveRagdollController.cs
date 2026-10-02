@@ -19,6 +19,9 @@ namespace Roadkill
     /// backwards reverses the swing). Hands reach for whatever the player holds, and a throw winds up
     /// (lean back, arms up) and flings forward.
     ///
+    /// While the local player is down, PlayerMotor hands the lead to the body (BodyLeads): the limp body
+    /// lies where it falls and the capsule follows its hips, so it never rolls like a capsule.
+    ///
     /// Active and limp ("Ragdoll Mode") blend over modeBlendSeconds. Limp comes from SetLimp, from the
     /// player being ragdolled (PlayerMotor locally, PlayerNet for remote copies) or from a hard knock.
     /// Built by the prefab generator (FishermanRagdollBuilder); values below are the tuned defaults.
@@ -68,11 +71,13 @@ namespace Roadkill
 
         [Header("Balance")]
         public float hipSpring = 90f;         // 1/s^2: how hard the hips chase their target
-        public float hipDamping = 13f;        // 1/s
+        public float hipDamping = 17f;        // 1/s: close to critical, so quick direction changes do not fling the hips
         public float maxHipAcceleration = 45f;
-        public float stackSpring = 160f;      // 1/s^2: spine, chest and head pulled back over the hips
-        public float stackDamping = 18f;
-        public float maxStackAcceleration = 70f;
+        public float stackSpring = 220f;      // 1/s^2: spine, chest and head pulled back over the hips
+        public float stackDamping = 24f;
+        public float maxStackAcceleration = 90f;
+        [Range(0f, 1f), Tooltip("Share of the hips' acceleration the upper body gets up front, so quick direction changes do not leave the torso behind.")]
+        public float stackFeedForward = 0.9f;
         public float uprightSpring = 120f;    // facing torque on hips and chest
         public float uprightDamping = 14f;
 
@@ -108,7 +113,9 @@ namespace Roadkill
         public float carryLeanPerMetre = 45f;
         public float maxCarryLean = 20f;
         [Range(0f, 1f), Tooltip("Side-steps are this much shorter than forward steps, so the feet do not cross.")]
-        public float sideStepScale = 0.4f;
+        public float sideStepScale = 0.3f;
+        [Range(0f, 1f), Tooltip("How much he leans into sideways movement and acceleration (forward lean is full).")]
+        public float sideLean = 0.4f;
 
         [Header("Modes")]
         public float modeBlendSeconds = 0.3f;
@@ -130,6 +137,8 @@ namespace Roadkill
         public bool IsUpright => chest != null && Vector3.Angle(chest.body.rotation * Quaternion.Inverse(chest.restRotation) * Vector3.up, Vector3.up) < 30f
                                  && Mathf.Abs(hips.body.position.y - root.position.y - hipHeight) < 0.15f;
         public float ActiveWeight => weight;
+        /// <summary>Set by PlayerMotor while the player is down: the body lies free and the capsule follows its hips.</summary>
+        public bool BodyLeads { get; set; }
         /// <summary>Right after a throw, while the arms fling forward.</summary>
         public bool IsThrowing => throwSwingTimer > 0f;
         /// <summary>Shoulder to palm at full stretch (metres).</summary>
@@ -269,7 +278,7 @@ namespace Roadkill
                 Step();
                 Reach();
             }
-            if (weight < 1f) Leash();
+            if (weight < 1f && !BodyLeads) Leash();
         }
 
         void TrackRoot(float dt)
@@ -289,9 +298,12 @@ namespace Roadkill
             speed = Mathf.Lerp(speed, flat, 1f - Mathf.Exp(-8f * dt));
             if (flat > 0.3f)
             {
-                // Travel direction in the character's own frame, eased so a quick turn does not flip the legs.
+                // Travel direction in the character's own frame, turned (on the ground plane) at a limited rate,
+                // so a quick turn or an A/D reversal does not flip the legs.
                 Vector3 local = Quaternion.Inverse(Facing()) * new Vector3(rootVelocity.x, 0f, rootVelocity.z);
-                move = Vector3.Slerp(move, local.normalized, 1f - Mathf.Exp(-10f * dt)).normalized;
+                float angle = Mathf.MoveTowardsAngle(Mathf.Atan2(move.x, move.z) * Mathf.Rad2Deg,
+                    Mathf.Atan2(local.x, local.z) * Mathf.Rad2Deg, 720f * dt);
+                move = new Vector3(Mathf.Sin(angle * Mathf.Deg2Rad), 0f, Mathf.Cos(angle * Mathf.Deg2Rad));
             }
             phaseRate = Mathf.Min(speed / strideLength, maxCadence) * Mathf.PI * 2f;
             if (IsGrounded) phase += phaseRate * dt;
@@ -354,7 +366,7 @@ namespace Roadkill
             float leanForward = lean * walk * move.z + Mathf.Clamp(accel.z, -6f, 10f)
                                 - throwWindUp * throwCharge + (throwSwingTimer > 0f ? throwLunge : 0f);
             leanForward += CarryLean(facing * Vector3.forward);
-            float leanSide = lean * walk * move.x + Mathf.Clamp(accel.x, -6f, 6f);
+            float leanSide = (lean * walk * move.x + Mathf.Clamp(accel.x, -6f, 6f)) * sideLean;
             Quaternion upright = facing * Quaternion.AngleAxis(leanForward, Vector3.right) * Quaternion.AngleAxis(-leanSide, Vector3.forward);
 
             // Stack the upper body over the hips: each torso part is pulled toward where it sits above the
@@ -364,7 +376,8 @@ namespace Roadkill
             {
                 if (p.role != Role.Spine && p.role != Role.Chest && p.role != Role.Head) continue;
                 Vector3 wanted = hips.body.position + upright * (p.restPosition - hips.restPosition);
-                Vector3 pull = (wanted - p.body.position) * stackSpring + (hips.body.linearVelocity - p.body.linearVelocity) * stackDamping;
+                Vector3 pull = (wanted - p.body.position) * stackSpring + (hips.body.linearVelocity - p.body.linearVelocity) * stackDamping
+                               + acceleration * stackFeedForward;   // move with the hips, not after them
                 pull = Vector3.ClampMagnitude(pull, maxStackAcceleration);
                 float mass = p.body.mass + (p.role == Role.Chest ? armMass : 0f);   // the chest carries the arms
                 float share = p.role == Role.Head ? 1f - 0.75f * headFloppiness : 1f;
@@ -414,7 +427,7 @@ namespace Roadkill
                     case Role.Spine:
                     case Role.Chest:
                         aboutRight += Mathf.Sin(t * 2.2f) * 1.5f * (1f - walk);
-                        aboutForward += Mathf.Sin(phase) * 3f * walk;
+                        aboutForward += Mathf.Sin(phase) * 3f * walk * (1f - sideways);   // no hip-roll on a side-step
                         break;
                     case Role.Head:
                         if (hasLook)
@@ -605,15 +618,32 @@ namespace Roadkill
             if (kick > 1f) staggerTimer = Mathf.Max(staggerTimer, 0.4f + 0.2f * kick);
         }
 
-        /// <summary>Send him flying. On the local player the real capsule is knocked down too, so he lands where the body does.</summary>
+        /// <summary>Send him flying. On the local player the real player is knocked down too (PlayerMotor hands the kick to the body).</summary>
         public void Launch(Vector3 velocity)
         {
-            if (motor != null && motor.enabled) motor.EnterRagdoll(knockoutSeconds, velocity);
             Knockout(knockoutSeconds);
+            bool viaMotor = motor != null && motor.enabled && motor.body == this;
+            if (viaMotor) motor.EnterRagdoll(knockoutSeconds, velocity);
             foreach (var p in parts)
             {
-                p.body.AddForce(velocity, ForceMode.VelocityChange);
+                if (!viaMotor) p.body.AddForce(velocity, ForceMode.VelocityChange);
                 p.body.AddTorque(Random.insideUnitSphere * 6f, ForceMode.VelocityChange);
+            }
+        }
+
+        /// <summary>The same velocity change for every bone (a knock or a hit while down).</summary>
+        public void AddVelocity(Vector3 velocity)
+        {
+            foreach (var p in parts) p.body.AddForce(velocity, ForceMode.VelocityChange);
+        }
+
+        /// <summary>Tip the body over: bones get speed in proportion to their height above the hips.</summary>
+        public void Topple(Vector3 direction, float speedPerMetre)
+        {
+            foreach (var p in parts)
+            {
+                float height = Mathf.Max(0f, p.body.position.y - hips.body.position.y);
+                p.body.AddForce(direction * (height * speedPerMetre), ForceMode.VelocityChange);
             }
         }
 

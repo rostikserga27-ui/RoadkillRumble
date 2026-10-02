@@ -33,6 +33,10 @@ namespace Roadkill
         int groundedSamples, crossedSamples, walkingSamples;
         float remoteReachSum;
         int remoteReachSamples;
+        // Side-to-side wobble and rolling while down.
+        float maxSideSway, limpTime, rollTravel, rollSpin;
+        int rollSamples;
+        Vector3 lastLimpHips;
         int samples, nanFrames, clipFrames, airborneFrames, activeSamples;
         string spinBone = "";
         // The remote-player stand-in, measured over the whole run.
@@ -75,6 +79,13 @@ namespace Roadkill
 
             Begin(); yield return Hold(2f, Key.S);
             End("walk backwards", checkTravel: true);
+
+            Place(new Vector3(-12f, 0.05f, -16f), Vector3.forward);
+            yield return Hold(0.5f);
+            Begin();
+            for (int k = 0; k < 6; k++) yield return Hold(0.6f, k % 2 == 0 ? Key.D : Key.A);
+            yield return Hold(0.8f);
+            End("side to side", checkSway: true);
 
             Begin();
             yield return Hold(0.8f, Key.W, Key.LeftShift);
@@ -122,8 +133,14 @@ namespace Roadkill
             float charge = builder.TestHands.ThrowCharge;
             yield return Hold(0f);                                   // G comes up: the throw
             bool flung = body.IsThrowing;
-            float crateSpeed = crate.linearVelocity.magnitude;
-            yield return Hold(1.5f);
+            float crateSpeed = 0f;
+            for (float t = 0f; t < 0.5f; t += Time.fixedDeltaTime)
+            {
+                yield return new WaitForFixedUpdate();
+                flung |= body.IsThrowing;
+                crateSpeed = Mathf.Max(crateSpeed, crate.linearVelocity.magnitude);
+            }
+            yield return Hold(1f);
             End("grab and throw");
             Log($"grab and throw: grabbed {grabbed}, reach short by {Mathf.Max(0f, reachError) * 100f:0} cm, arms off the grip by {aimError:0} deg, charge {charge:0.00}, flung {flung}, crate left at {crateSpeed:0.0} m/s");
             if (!grabbed) failures.Add("grab: nothing grabbed");
@@ -153,8 +170,10 @@ namespace Roadkill
             End("launched", expectRecovered: true);
             if (!flying) failures.Add("launch: did not go limp with the player");
 
-            Begin(); yield return Hold(2f, Key.C); yield return Recover(6f);
-            End("possum", expectRecovered: true);
+            Place(new Vector3(0f, 0.05f, -1f), Vector3.forward);
+            yield return Hold(1f);
+            Begin(); yield return Hold(3f, Key.C); yield return Recover(6f);
+            End("possum", expectRecovered: true, checkRoll: true);
 
             Begin(); body.SetLimp(true); yield return Hold(2f); body.SetLimp(false); yield return Recover(4f);
             End("ragdoll toggle", expectRecovered: true);
@@ -212,11 +231,28 @@ namespace Roadkill
             samples = nanFrames = clipFrames = airborneFrames = activeSamples = groundedSamples = 0;
             legLagSum = feetTrailSum = 0f;
             crossedSamples = walkingSamples = 0;
+            maxSideSway = limpTime = rollTravel = rollSpin = 0f;
+            rollSamples = 0;
             spinBone = "";
         }
 
-        void End(string phase, bool checkJitter = false, bool checkGait = false, bool expectAirborne = false, bool expectRecovered = false, bool checkTravel = false)
+        void End(string phase, bool checkJitter = false, bool checkGait = false, bool expectAirborne = false, bool expectRecovered = false,
+            bool checkTravel = false, bool checkSway = false, bool checkRoll = false)
         {
+            if (checkSway)
+            {
+                float swayTilt = activeSamples > 0 ? tiltSum / activeSamples : 0f;
+                Log($"{phase}: torso tilt avg {swayTilt:0} max {maxTilt:0} deg, hips swing up to {maxSideSway * 100f:0} cm sideways off the capsule, jitter {(samples > 0 ? jitterSum / samples : 0f):0.00} rad/s");
+                if (swayTilt > 12f || maxTilt > 30f) failures.Add($"{phase}: torso thrown about (avg {swayTilt:0}, max {maxTilt:0} deg)");
+                if (maxSideSway > 0.3f) failures.Add($"{phase}: hips flung {maxSideSway * 100f:0} cm sideways");
+            }
+            if (checkRoll)
+            {
+                float spin = rollSamples > 0 ? rollSpin / rollSamples : 0f;
+                Log($"{phase}: while lying limp the hips moved {rollTravel * 100f:0} cm and turned {spin:0.00} rad/s on average");
+                if (rollTravel > 0.5f) failures.Add($"{phase}: body rolled {rollTravel:0.00} m while lying down");
+                if (spin > 1.5f) failures.Add($"{phase}: body kept spinning while down ({spin:0.00} rad/s)");
+            }
             float jitter = samples > 0 ? jitterSum / samples : 0f;
             float hips = samples > 0 ? hipHeightSum / samples : 0f;
             float tilt = activeSamples > 0 ? tiltSum / activeSamples : 0f;
@@ -337,6 +373,23 @@ namespace Roadkill
                 if (!body.IsGrounded) airborneFrames++;
                 else groundedSamples++;
                 jitterSum += body.Hips.angularVelocity.magnitude;
+                if (!body.IsLimp)
+                {
+                    Vector3 off = body.Hips.position - root.position;
+                    maxSideSway = Mathf.Max(maxSideSway, Mathf.Abs(Vector3.Dot(off, root.right)));
+                }
+                if (body.IsLimp && body.ActiveWeight < 0.01f)
+                {
+                    limpTime += Time.fixedDeltaTime;
+                    if (limpTime > 1f)   // settled on the ground: from here a limp body should lie still
+                    {
+                        Vector3 delta = body.Hips.position - lastLimpHips;
+                        rollTravel += new Vector2(delta.x, delta.z).magnitude;
+                        rollSpin += body.Hips.angularVelocity.magnitude;
+                        rollSamples++;
+                    }
+                    lastLimpHips = body.Hips.position;
+                }
                 hipHeightSum += body.Hips.position.y - root.position.y;
 
                 if (!body.IsLimp && body.ActiveWeight > 0.99f)

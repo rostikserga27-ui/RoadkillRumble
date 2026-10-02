@@ -342,6 +342,7 @@ MonoBehaviour:
   jumpHeight: 1.1
   groundAcceleration: 40
   airAcceleration: 8
+  body: {fileID: 4492035118224260260}
   cameraPivot: {fileID: 2888593817901860370}
   mouseSensitivity: 2
   standingEyeHeight: 1.6

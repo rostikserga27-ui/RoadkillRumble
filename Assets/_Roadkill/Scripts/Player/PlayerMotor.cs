@@ -110,7 +110,6 @@ namespace Roadkill
                         Vector2 look = RkInput.Look * mouseSensitivity;
                         yaw += look.x;
                         pitch = Mathf.Clamp(pitch - look.y, -85f, 85f);
-                        cameraPivot.localRotation = Quaternion.Euler(pitch, 0f, 0f);
                     }
                     if (RkInput.JumpPressed) jumpQueued = true;
                     if (RkInput.Possum) EnterRagdoll(Mathf.Infinity, Vector3.zero, possum: true);
@@ -125,6 +124,13 @@ namespace Roadkill
 
             UpdateCrouch();
             if (RkInput.ResetPressed) Respawn();
+        }
+
+        void LateUpdate()
+        {
+            // The body turns in FixedUpdate (50 Hz), so a camera that only inherited its yaw would turn in
+            // steps between physics ticks. Aim the view straight from the mouse every frame instead.
+            if (state == State.Normal) cameraPivot.rotation = Quaternion.Euler(pitch, yaw, 0f);
         }
 
         void FixedUpdate()

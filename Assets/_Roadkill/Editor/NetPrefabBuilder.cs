@@ -55,7 +55,33 @@ namespace Roadkill.EditorTools
             File.WriteAllText(VersionFile, BuildVersion);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+            AssignNetworkIds();
             Debug.Log($"Roadkill: network prefabs built in {Root}");
+        }
+
+        /// <summary>
+        /// Netcode tells prefabs apart by GlobalObjectIdHash, which NetworkObject.OnValidate derives from
+        /// the saved asset. A prefab saved straight from code keeps 0 (or a stale copied value), and then
+        /// every prefab shares one id and clients spawn the wrong object. Run it on the saved assets.
+        /// </summary>
+        static void AssignNetworkIds()
+        {
+            var onValidate = typeof(NetworkObject).GetMethod("OnValidate",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+            if (onValidate == null)
+            {
+                Debug.LogWarning("Roadkill: NetworkObject.OnValidate not found; network prefab ids were not assigned.");
+                return;
+            }
+            foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { Root }))
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
+                var networkObject = prefab != null ? prefab.GetComponent<NetworkObject>() : null;
+                if (networkObject == null) continue;
+                onValidate.Invoke(networkObject, null);
+                EditorUtility.SetDirty(prefab);
+            }
+            AssetDatabase.SaveAssets();
         }
 
         static GameObject BuildPlayer()

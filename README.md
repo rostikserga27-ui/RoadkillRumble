@@ -2,6 +2,25 @@
 
 Физическая кооп-игра от первого лица. Дизайн-документ: https://claude.ai/code/artifact/6c2a188d-939e-44e1-ad09-7c556c1af5ac
 
+## Для участников: как развернуть проект
+
+1. Установите [Git](https://git-scm.com/download/win), [Unity Hub](https://unity.com/download) и в нём **Unity 6000.6.4f1** (та же версия, что у всех, иначе Unity будет переконвертировать проект).
+2. Склонируйте репозиторий:
+   ```
+   git clone https://github.com/rostikserga27-ui/RoadkillRumble.git
+   ```
+3. Unity Hub → **Add → Add project from disk** → папка `RoadkillRumble`. Первое открытие займёт несколько минут: Unity скачает пакеты (Netcode, Steamworks.NET, MCP for Unity).
+4. Откройте сцену `Assets/Scenes/Greybox.unity` и нажмите **Play**.
+5. Blender нужен только для правки персонажа: исходник `ArtSource/Character.blend`, экспорт в `Assets/_Roadkill/Art/Character/`.
+
+**Как работать вместе, чтобы не ломать друг другу проект:**
+
+- Перед работой: `git pull`. После: `git add -A`, `git commit -m "что сделал"`, `git push`.
+- Делайте свою задачу в отдельной ветке (`git switch -c имя-задачи`) и вливайте через Pull Request на GitHub.
+- Не редактируйте вдвоём одну сцену или префаб одновременно: Unity-файлы плохо сливаются.
+- Префабы в `Resources/RoadkillNet` руками не правьте: их генерирует `NetPrefabBuilder.cs`. Меняйте код и жмите **Roadkill → Rebuild Network Prefabs**.
+- Чтобы играть друг с другом, у всех должна быть сборка с одного и того же коммита: при разных префабах Netcode не соединит.
+
 ## Как запустить
 
 1. Откройте проект в Unity 6 (6000.6.4f1) через Unity Hub.

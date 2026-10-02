@@ -85,11 +85,13 @@ namespace Roadkill
         static void ResetStatics() => All.Clear();
 
         PlayerMotor motor;
+        PlayerTools tools;
         Collider[] ownColliders;
 
         void Awake()
         {
             motor = GetComponent<PlayerMotor>();
+            tools = GetComponent<PlayerTools>();
             ownColliders = GetComponentsInChildren<Collider>();
             Left = new Hand(0, new Vector3(-0.28f, -0.3f, 0.55f), -0.22f);
             Right = new Hand(1, new Vector3(0.28f, -0.3f, 0.55f), 0.22f);
@@ -190,8 +192,10 @@ namespace Roadkill
             var fallCamera = GetComponent<PossumCamera>();
             bool cameraReady = fallCamera == null || !fallCamera.IsTransitioning;
             bool canAct = cameraReady && (motor == null || !motor.IsRagdolled) && Cursor.lockState == CursorLockMode.Locked;
-            HandleHand(Left, canAct && RkInput.LeftHandHeld);
-            HandleHand(Right, canAct && RkInput.RightHandHeld);
+            // A tool in hand (hotbar) takes both buttons: LMB swings it, nothing grabs.
+            bool canGrab = canAct && (tools == null || !tools.BlocksGrab);
+            HandleHand(Left, canGrab && RkInput.LeftHandHeld);
+            HandleHand(Right, canGrab && RkInput.RightHandHeld);
 
             bool holding = IsHolding(Left) || IsHolding(Right);
             if (holding && RkInput.ThrowHeld)
@@ -304,6 +308,9 @@ namespace Roadkill
             Transform view = viewCamera.transform;
             var held = HeldBody(hand);
             Vector3 targetWorld = held != null ? held.transform.TransformPoint(hand.LocalGrip) : view.TransformPoint(hand.RestOffset);
+            // The right hand grips the hotbar tool.
+            var grip = hand == Right && tools != null ? tools.GripPoint : null;
+            if (grip != null) targetWorld = grip.position;
             Vector3 local = Vector3.ClampMagnitude(view.InverseTransformPoint(targetWorld), 1.2f);
             local.z = Mathf.Max(local.z, 0.3f);
             hand.Visual.localPosition = Vector3.Lerp(hand.Visual.localPosition, local, 1f - Mathf.Exp(-20f * Time.deltaTime));

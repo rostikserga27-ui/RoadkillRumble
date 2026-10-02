@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8e5b157f157af41bb074d4ace9a602, type: 3}
+  m_Name: BaseballBat
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.ShopItemData
+  displayName: Baseball Bat
+  price: 150
+  type: 0
+  heldPrefab: {fileID: 7133175044118300886, guid: 7d25cc87961f7f841923170b7bf1962c, type: 3}
+  placeholderShape: 1
+  placeholderScale: {x: 0.09, y: 0.42, z: 0.09}
+  iconColor: {r: 0.55, g: 0.38, b: 0.22, a: 1}
+  priceIncreasePerPurchase: 0

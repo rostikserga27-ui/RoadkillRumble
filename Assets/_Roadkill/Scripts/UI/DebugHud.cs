@@ -16,6 +16,7 @@ namespace Roadkill
             "LMB / RMB hold: grab with left / right hand\n" +
             "G hold, then release: throw what you hold\n" +
             "C hold: play possum   Space while down: get up faster\n" +
+            "E buy at the shop   1-6 / wheel: hotbar   LMB with a bat: swing\n" +
             "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
             "R respawn   F1 hide help   Esc free the mouse";
 
@@ -111,7 +112,7 @@ namespace Roadkill
                 GUI.color = previous;
             }
 
-            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 120f), Help, label);
+            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 140f), Help, label);
             if (Cursor.lockState != CursorLockMode.Locked)
                 GUI.Label(new Rect(0f, h * 0.5f + 40f, w, 40f), "Click to play", banner);
         }

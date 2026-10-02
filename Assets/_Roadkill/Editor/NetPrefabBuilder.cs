@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "6";
+        const string BuildVersion = "7";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -138,6 +138,19 @@ namespace Roadkill.EditorTools
             voice.mouthVisual = mouth;
             var hud = go.AddComponent<DebugHud>();
             hud.enabled = false;
+
+            // Shop, wallet and hotbar: switched on for the local player only (PlayerNet).
+            var money = go.AddComponent<MoneyManager>();
+            money.enabled = false;
+            var hotbar = go.AddComponent<HotbarInventory>();
+            hotbar.enabled = false;
+            var shop = go.AddComponent<ShopInteractor>();
+            shop.Setup(cam, money, hotbar, motor);
+            shop.enabled = false;
+            var hotbarUI = go.AddComponent<HotbarUI>();
+            hotbarUI.Setup(hotbar, money);
+            hotbarUI.enabled = false;
+            go.AddComponent<PlayerTools>().Setup(ShopAssetBuilder.EnsureAssets(), hotbar, cam);
             var net = go.AddComponent<PlayerNet>();
             net.playerCamera = cam;
             net.listener = listener;
@@ -323,7 +336,7 @@ namespace Roadkill.EditorTools
             Object.DestroyImmediate(go);
         }
 
-        static Material MaterialFor(Color color)
+        internal static Material MaterialFor(Color color)
         {
             string path = $"{MaterialFolder}/Flat_{ColorUtility.ToHtmlStringRGB(color)}.mat";
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);

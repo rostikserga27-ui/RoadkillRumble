@@ -45,6 +45,26 @@ namespace Roadkill
         public static bool VoiceModePressed => Kb != null && Kb.f2Key.wasPressedThisFrame;
         public static bool LoopbackPressed => Kb != null && Kb.f3Key.wasPressedThisFrame;
         public static bool InvitePressed => Kb != null && Kb.f4Key.wasPressedThisFrame;
+        public static bool InteractPressed => Kb != null && Kb.eKey.wasPressedThisFrame;
+        public static bool DebugMoneyPressed => Kb != null && Kb.f5Key.wasPressedThisFrame;
+        /// <summary>Mouse wheel this frame: positive = up.</summary>
+        public static float Scroll => Ms != null ? Ms.scroll.ReadValue().y : 0f;
+
+        /// <summary>Hotbar slot picked with 1-6 this frame (0-based), or -1.</summary>
+        public static int SlotKeyPressed
+        {
+            get
+            {
+                if (Kb == null) return -1;
+                if (Kb.digit1Key.wasPressedThisFrame) return 0;
+                if (Kb.digit2Key.wasPressedThisFrame) return 1;
+                if (Kb.digit3Key.wasPressedThisFrame) return 2;
+                if (Kb.digit4Key.wasPressedThisFrame) return 3;
+                if (Kb.digit5Key.wasPressedThisFrame) return 4;
+                if (Kb.digit6Key.wasPressedThisFrame) return 5;
+                return -1;
+            }
+        }
 #else
         public static Vector2 Move
         {
@@ -73,6 +93,19 @@ namespace Roadkill
         public static bool VoiceModePressed => Input.GetKeyDown(KeyCode.F2);
         public static bool LoopbackPressed => Input.GetKeyDown(KeyCode.F3);
         public static bool InvitePressed => Input.GetKeyDown(KeyCode.F4);
+        public static bool InteractPressed => Input.GetKeyDown(KeyCode.E);
+        public static bool DebugMoneyPressed => Input.GetKeyDown(KeyCode.F5);
+        public static float Scroll => Input.mouseScrollDelta.y;
+
+        public static int SlotKeyPressed
+        {
+            get
+            {
+                for (int i = 0; i < 6; i++)
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + i)) return i;
+                return -1;
+            }
+        }
 #endif
     }
 }

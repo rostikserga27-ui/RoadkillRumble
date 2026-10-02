@@ -2215,6 +2215,11 @@ GameObject:
   - component: {fileID: 3572953243116038259}
   - component: {fileID: 7548177099661645517}
   - component: {fileID: 1975696854753093564}
+  - component: {fileID: 6628344109994580833}
+  - component: {fileID: 5458661561700361136}
+  - component: {fileID: 6424330982055926315}
+  - component: {fileID: 6559028725517796908}
+  - component: {fileID: 1127357813119550888}
   - component: {fileID: 4025892500302269358}
   m_Layer: 0
   m_Name: NetPlayer
@@ -2482,6 +2487,95 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Roadkill.DebugHud
   showHelp: 1
+--- !u!114 &6628344109994580833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb2169d4097c5e145bf651bb69155135, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.MoneyManager
+  startingMoney: 500
+  debugAddAmount: 100
+--- !u!114 &5458661561700361136
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b46745910f4d6df4bba0e9166f6c017a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.HotbarInventory
+  startingSlots: 3
+  maxSlots: 6
+--- !u!114 &6424330982055926315
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d579de8cc83a6f24f8a0ad97f72429e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.ShopInteractor
+  viewCamera: {fileID: 5636501391228215316}
+  money: {fileID: 6628344109994580833}
+  hotbar: {fileID: 5458661561700361136}
+  motor: {fileID: 6187176347359937892}
+  range: 3
+  messageSeconds: 2
+--- !u!114 &6559028725517796908
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b206b0ad74315a41b5bbecbd9b5e2cf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.HotbarUI
+  hotbar: {fileID: 5458661561700361136}
+  money: {fileID: 6628344109994580833}
+  slotSize: 58
+  gap: 6
+  bottomMargin: 120
+  selectedColor: {r: 1, g: 0.8, b: 0.2, a: 1}
+--- !u!114 &1127357813119550888
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4c98d6e9e9b9f6f4fa4e9b9b9547dd2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.PlayerTools
+  ShowTopMostFoldoutHeaderGroup: 1
+  catalog: {fileID: 11400000, guid: 5deb613627fd1c64486675f12c3c4519, type: 2}
+  hotbar: {fileID: 5458661561700361136}
+  viewCamera: {fileID: 5636501391228215316}
+  heldOffset: {x: 0.3, y: -0.32, z: 0.55}
+  placeholderEuler: {x: 60, y: 0, z: 0}
+  handBone: Hand_R
+  maxHitDistance: 4
+  maxLaunchSpeed: 16
+  knockDownPlayers: 1
+  playerDowntime: 1.2
+  playerDamage: 10
+  playerKick: 4
 --- !u!114 &4025892500302269358
 MonoBehaviour:
   m_ObjectHideFlags: 0

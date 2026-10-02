@@ -22,6 +22,7 @@ namespace Roadkill
             BuildLogBridge();
             BuildSwingFrame();
             BuildTrees();
+            ShopStall.Build(Resources.Load<ShopCatalog>(ShopCatalog.ResourcePath), new Vector3(-10f, 0f, -7f), Quaternion.identity);
 
             Label("CARRY TEST: 1 hand lifts 20 kg, 1 player 40 kg, 2 players 80 kg", new Vector3(0f, 3f, -3f));
             Label("THROW TEST: hold G, release", new Vector3(8f, 3f, 8f));

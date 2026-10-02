@@ -45,6 +45,11 @@ namespace Roadkill
         public static bool VoiceModePressed => Kb != null && Kb.f2Key.wasPressedThisFrame;
         public static bool LoopbackPressed => Kb != null && Kb.f3Key.wasPressedThisFrame;
         public static bool InvitePressed => Kb != null && Kb.f4Key.wasPressedThisFrame;
+        // Ragdoll test scene debug keys.
+        public static bool RagdollTogglePressed => Kb != null && Kb.f5Key.wasPressedThisFrame;
+        public static bool LaunchPressed => Kb != null && Kb.f6Key.wasPressedThisFrame;
+        public static bool ResetPosePressed => Kb != null && Kb.f7Key.wasPressedThisFrame;
+        public static bool FireBoxPressed => Kb != null && Kb.f8Key.wasPressedThisFrame;
 #else
         public static Vector2 Move
         {
@@ -73,6 +78,10 @@ namespace Roadkill
         public static bool VoiceModePressed => Input.GetKeyDown(KeyCode.F2);
         public static bool LoopbackPressed => Input.GetKeyDown(KeyCode.F3);
         public static bool InvitePressed => Input.GetKeyDown(KeyCode.F4);
+        public static bool RagdollTogglePressed => Input.GetKeyDown(KeyCode.F5);
+        public static bool LaunchPressed => Input.GetKeyDown(KeyCode.F6);
+        public static bool ResetPosePressed => Input.GetKeyDown(KeyCode.F7);
+        public static bool FireBoxPressed => Input.GetKeyDown(KeyCode.F8);
 #endif
     }
 }

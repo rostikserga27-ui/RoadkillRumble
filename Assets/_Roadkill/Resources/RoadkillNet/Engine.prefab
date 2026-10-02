@@ -195,7 +195,7 @@ MonoBehaviour:
   SynchronizeTransform: 1
   m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
+  SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
   AutoObjectParentSync: 1

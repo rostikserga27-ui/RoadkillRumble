@@ -19,7 +19,11 @@ namespace Roadkill.EditorTools
             importer.useFileScale = true;
             importer.globalScale = 1f;
             importer.importAnimation = false;
-            importer.animationType = ModelImporterAnimationType.None;
+            // Generic keeps the skinning (None would turn the skinned meshes into rigid MeshRenderers);
+            // the Animator it adds is removed by the prefab builder.
+            importer.animationType = ModelImporterAnimationType.Generic;
+            importer.avatarSetup = ModelImporterAvatarSetup.NoAvatar;
+            importer.optimizeGameObjects = false;
             importer.importCameras = false;
             importer.importLights = false;
             importer.importBlendShapes = false;

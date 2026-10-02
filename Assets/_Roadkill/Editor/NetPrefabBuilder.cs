@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "4";
+        const string BuildVersion = "5";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -151,6 +151,9 @@ namespace Roadkill.EditorTools
             model.name = "Model";
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
+            // CharacterAnimator drives the bones; an idle Animator would only cost time.
+            var importedAnimator = model.GetComponent<Animator>();
+            if (importedAnimator != null) Object.DestroyImmediate(importedAnimator);
 
             head = FindDeep(model.transform, "Head");
             mouth = FindDeep(model.transform, "Jaw");

@@ -20,6 +20,9 @@ namespace Roadkill
         Vector3 positionVelocity;
         Quaternion orbit;
         bool followingFall;
+        float returnProgress;
+        Vector3 returnOffset;
+        Quaternion returnRotation;
         int resetVersion;
 
         public void Initialize(PlayerNet owner)
@@ -54,10 +57,15 @@ namespace Roadkill
                 // Capture the viewing direction once; capsule tumbling must not roll the camera.
                 orbit = Quaternion.Euler(0f, rotation.eulerAngles.y, 0f);
             }
-            if (!player.Motor.IsRagdolled) followingFall = false;
-
             Vector3 firstPosition = view.parent.TransformPoint(restPosition);
             Quaternion firstRotation = view.parent.rotation * restRotation;
+            if (followingFall && !player.Motor.IsRagdolled)
+            {
+                followingFall = false;
+                returnProgress = 0f;
+                returnOffset = position - firstPosition;
+                returnRotation = rotation;
+            }
             if (!IsTransitioning)
             {
                 view.SetPositionAndRotation(firstPosition, firstRotation);
@@ -73,16 +81,29 @@ namespace Roadkill
             Quaternion targetRotation = followingFall
                 ? Quaternion.LookRotation(focus - targetPosition, Vector3.up)
                 : firstRotation;
-            position = Vector3.SmoothDamp(position, targetPosition, ref positionVelocity,
-                Mathf.Max(0.01f, transitionSeconds));
-            rotation = Quaternion.Slerp(rotation, targetRotation,
-                1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, transitionSeconds)));
+            if (followingFall)
+            {
+                position = Vector3.SmoothDamp(position, targetPosition, ref positionVelocity,
+                    Mathf.Max(0.01f, transitionSeconds));
+                rotation = Quaternion.Slerp(rotation, targetRotation,
+                    1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.01f, transitionSeconds)));
+            }
+            else
+            {
+                // A finite blend follows the moving eyes, so walking or turning cannot keep
+                // the camera (and grab controls) stuck in the return transition indefinitely.
+                returnProgress = Mathf.Clamp01(returnProgress + Time.deltaTime /
+                    Mathf.Max(0.01f, transitionSeconds * 3f));
+                float blend = Mathf.SmoothStep(0f, 1f, returnProgress);
+                position = firstPosition + returnOffset * (1f - blend);
+                rotation = Quaternion.Slerp(returnRotation, firstRotation, blend);
+                positionVelocity = Vector3.zero;
+            }
 
             // Resolve after smoothing as well, so easing cannot leave the camera behind a wall.
             Vector3 safePosition = AvoidObstacles(focus, position);
             view.SetPositionAndRotation(safePosition, rotation);
-            if (!followingFall && Vector3.Distance(position, firstPosition) < 0.015f
-                && Quaternion.Angle(rotation, firstRotation) < 0.5f)
+            if (!followingFall && returnProgress >= 1f)
             {
                 ResetView();
                 return;

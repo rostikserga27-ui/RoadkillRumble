@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "2";
+        const string BuildVersion = "4";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -86,18 +86,17 @@ namespace Roadkill.EditorTools
             var listener = cameraGo.AddComponent<AudioListener>();
             listener.enabled = false;
 
-            // What other players see: a goofy capsule with a head that follows the owner's view.
+            // What other players see: the Blender character if it is imported, otherwise primitives.
             var renderers = new List<Renderer>();
-            var torso = Part(PrimitiveType.Capsule, "Torso", go.transform, new Vector3(0f, 0.85f, 0f), new Vector3(0.7f, 0.75f, 0.7f), Color.white, renderers);
-            var head = new GameObject("Head").transform;
-            head.SetParent(go.transform, false);
-            head.localPosition = new Vector3(0f, 1.6f, 0f);
-            Part(PrimitiveType.Sphere, "Skull", head, Vector3.zero, Vector3.one * 0.42f, Skin, renderers);
-            Part(PrimitiveType.Sphere, "EyeL", head, new Vector3(-0.09f, 0.05f, 0.18f), Vector3.one * 0.11f, Color.white, renderers);
-            Part(PrimitiveType.Sphere, "EyeR", head, new Vector3(0.09f, 0.05f, 0.18f), Vector3.one * 0.11f, Color.white, renderers);
-            Part(PrimitiveType.Sphere, "PupilL", head, new Vector3(-0.09f, 0.05f, 0.23f), Vector3.one * 0.05f, Color.black, renderers);
-            Part(PrimitiveType.Sphere, "PupilR", head, new Vector3(0.09f, 0.05f, 0.23f), Vector3.one * 0.05f, Color.black, renderers);
-            var mouth = Part(PrimitiveType.Cube, "Mouth", head, new Vector3(0f, -0.09f, 0.19f), new Vector3(0.14f, 0.03f, 0.04f), new Color(0.35f, 0.08f, 0.1f), renderers);
+            Transform head, mouth;
+            Renderer tint;
+            RagdollRig ragdoll = null;
+            CharacterAnimator animator = null;
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterModelPath);
+            if (model != null)
+                BuildCharacterModel(go, body, model, renderers, out head, out mouth, out tint, out ragdoll, out animator);
+            else
+                BuildPrimitiveBody(go, renderers, out head, out mouth, out tint);
 
             AddNetworking(go, NetworkTransform.AuthorityModes.Owner);
 
@@ -107,9 +106,10 @@ namespace Roadkill.EditorTools
             motor.enabled = false;
             var hands = go.AddComponent<HandsController>();
             hands.viewCamera = cam;
+            hands.handModel = AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath);
             var voice = go.AddComponent<VoiceChat>();
             voice.mouthPoint = head;
-            voice.mouthVisual = mouth.transform;
+            voice.mouthVisual = mouth;
             var hud = go.AddComponent<DebugHud>();
             hud.enabled = false;
             var net = go.AddComponent<PlayerNet>();
@@ -117,8 +117,149 @@ namespace Roadkill.EditorTools
             net.listener = listener;
             net.head = head;
             net.bodyRenderers = renderers.ToArray();
-            net.tintRenderers = new[] { torso.GetComponent<Renderer>() };
+            net.tintRenderers = new[] { tint };
+            net.ragdoll = ragdoll;
+            net.animator = animator;
             return go;
+        }
+
+        const string CharacterModelPath = "Assets/_Roadkill/Art/Character/Character.fbx";
+        const string HandModelPath = "Assets/_Roadkill/Art/Character/FPArm.fbx";
+
+        // Ragdoll bones, parents before children: bone, the bone it points at, radius (m), mass (kg),
+        // twist and swing limits (degrees). Hands, feet, neck and jaw ride on their parents.
+        static readonly (string bone, string toward, float radius, float mass, float twist, float swing)[] RagdollBones =
+        {
+            ("Hips", "Spine", 0.13f, 3f, 15f, 15f),
+            ("Spine", "Chest", 0.12f, 2.5f, 15f, 20f),
+            ("Chest", "Neck", 0.13f, 2.5f, 15f, 20f),
+            ("Head", null, 0.19f, 2f, 30f, 40f),
+            ("UpperArm_L", "LowerArm_L", 0.05f, 0.8f, 60f, 70f),
+            ("LowerArm_L", "Hand_L", 0.045f, 0.6f, 80f, 15f),
+            ("UpperArm_R", "LowerArm_R", 0.05f, 0.8f, 60f, 70f),
+            ("LowerArm_R", "Hand_R", 0.045f, 0.6f, 80f, 15f),
+            ("UpperLeg_L", "LowerLeg_L", 0.07f, 2f, 40f, 50f),
+            ("LowerLeg_L", "Foot_L", 0.06f, 1.5f, 80f, 10f),
+            ("UpperLeg_R", "LowerLeg_R", 0.07f, 2f, 40f, 50f),
+            ("LowerLeg_R", "Foot_R", 0.06f, 1.5f, 80f, 10f),
+        };
+
+        static void BuildCharacterModel(GameObject player, Rigidbody playerBody, GameObject modelAsset, List<Renderer> renderers,
+            out Transform head, out Transform mouth, out Renderer tint, out RagdollRig ragdoll, out CharacterAnimator animator)
+        {
+            var model = Object.Instantiate(modelAsset, player.transform);
+            model.name = "Model";
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+
+            head = FindDeep(model.transform, "Head");
+            mouth = FindDeep(model.transform, "Jaw");
+            // The jaw sits in front of the head; if it ended up behind, the export faces backwards.
+            if (player.transform.InverseTransformPoint(mouth.position).z < player.transform.InverseTransformPoint(head.position).z)
+                model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+            tint = null;
+            foreach (var r in model.GetComponentsInChildren<Renderer>())
+            {
+                renderers.Add(r);
+                if (r is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;   // bounds follow the ragdoll
+                if (r.name == "Overalls") tint = r;
+            }
+
+            var bodies = new List<Rigidbody>();
+            var colliders = new List<Collider>();
+            var byBone = new Dictionary<Transform, Rigidbody>();
+            Transform up = player.transform;
+            foreach (var spec in RagdollBones)
+            {
+                var bone = FindDeep(model.transform, spec.bone);
+                if (bone == null) continue;
+                float unit = 1f / Mathf.Max(0.0001f, bone.lossyScale.x);   // metres to bone-local units
+
+                var rb = bone.gameObject.AddComponent<Rigidbody>();
+                rb.mass = spec.mass;
+                rb.isKinematic = true;
+                rb.interpolation = RigidbodyInterpolation.Interpolate;
+                rb.angularDamping = 0.5f;
+                rb.solverIterations = 10;
+
+                Collider collider;
+                if (spec.toward == null)
+                {
+                    var sphere = bone.gameObject.AddComponent<SphereCollider>();
+                    sphere.radius = spec.radius * unit;
+                    sphere.center = bone.InverseTransformPoint(bone.position + up.up * 0.14f);
+                    collider = sphere;
+                }
+                else
+                {
+                    var target = FindDeep(model.transform, spec.toward);
+                    Vector3 local = bone.InverseTransformPoint(target.position);
+                    Vector3 abs = new Vector3(Mathf.Abs(local.x), Mathf.Abs(local.y), Mathf.Abs(local.z));
+                    var capsule = bone.gameObject.AddComponent<CapsuleCollider>();
+                    capsule.direction = abs.x > abs.y && abs.x > abs.z ? 0 : abs.y > abs.z ? 1 : 2;
+                    capsule.center = local * 0.5f;
+                    capsule.radius = spec.radius * unit;
+                    capsule.height = local.magnitude + spec.radius * unit * 2f;
+                    collider = capsule;
+                }
+
+                for (var parent = bone.parent; parent != null && parent != model.transform; parent = parent.parent)
+                {
+                    if (!byBone.TryGetValue(parent, out var parentBody)) continue;
+                    var joint = bone.gameObject.AddComponent<CharacterJoint>();
+                    joint.connectedBody = parentBody;
+                    joint.axis = bone.InverseTransformDirection(up.right);
+                    joint.swingAxis = bone.InverseTransformDirection(up.forward);
+                    joint.lowTwistLimit = new SoftJointLimit { limit = -spec.twist };
+                    joint.highTwistLimit = new SoftJointLimit { limit = spec.twist };
+                    joint.swing1Limit = new SoftJointLimit { limit = spec.swing };
+                    joint.swing2Limit = new SoftJointLimit { limit = spec.swing };
+                    joint.enableProjection = true;
+                    break;
+                }
+
+                bodies.Add(rb);
+                colliders.Add(collider);
+                byBone[bone] = rb;
+            }
+
+            ragdoll = model.AddComponent<RagdollRig>();
+            ragdoll.root = playerBody;
+            ragdoll.hips = byBone[FindDeep(model.transform, "Hips")];
+            ragdoll.bodies = bodies.ToArray();
+            ragdoll.colliders = colliders.ToArray();
+
+            animator = model.AddComponent<CharacterAnimator>();
+            animator.root = player.transform;
+            animator.ragdoll = ragdoll;
+        }
+
+        /// <summary>The old stand-in body: capsule, sphere head, googly eyes.</summary>
+        static void BuildPrimitiveBody(GameObject go, List<Renderer> renderers, out Transform head, out Transform mouth, out Renderer tint)
+        {
+            var torso = Part(PrimitiveType.Capsule, "Torso", go.transform, new Vector3(0f, 0.85f, 0f), new Vector3(0.7f, 0.75f, 0.7f), Color.white, renderers);
+            head = new GameObject("Head").transform;
+            head.SetParent(go.transform, false);
+            head.localPosition = new Vector3(0f, 1.6f, 0f);
+            Part(PrimitiveType.Sphere, "Skull", head, Vector3.zero, Vector3.one * 0.42f, Skin, renderers);
+            Part(PrimitiveType.Sphere, "EyeL", head, new Vector3(-0.09f, 0.05f, 0.18f), Vector3.one * 0.11f, Color.white, renderers);
+            Part(PrimitiveType.Sphere, "EyeR", head, new Vector3(0.09f, 0.05f, 0.18f), Vector3.one * 0.11f, Color.white, renderers);
+            Part(PrimitiveType.Sphere, "PupilL", head, new Vector3(-0.09f, 0.05f, 0.23f), Vector3.one * 0.05f, Color.black, renderers);
+            Part(PrimitiveType.Sphere, "PupilR", head, new Vector3(0.09f, 0.05f, 0.23f), Vector3.one * 0.05f, Color.black, renderers);
+            mouth = Part(PrimitiveType.Cube, "Mouth", head, new Vector3(0f, -0.09f, 0.19f), new Vector3(0.14f, 0.03f, 0.04f), new Color(0.35f, 0.08f, 0.1f), renderers).transform;
+            tint = torso.GetComponent<Renderer>();
+        }
+
+        static Transform FindDeep(Transform parent, string name)
+        {
+            if (parent.name == name) return parent;
+            foreach (Transform child in parent)
+            {
+                var found = FindDeep(child, name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         static GameObject Part(PrimitiveType shape, string name, Transform parent, Vector3 localPosition, Vector3 scale,

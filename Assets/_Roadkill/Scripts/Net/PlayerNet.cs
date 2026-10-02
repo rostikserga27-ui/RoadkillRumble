@@ -6,8 +6,10 @@ namespace Roadkill
     /// <summary>
     /// Glue for a networked player. The owner simulates its own body (owner-authoritative
     /// NetworkTransform), sees through its camera and hides its own body mesh; everyone else sees a
-    /// kinematic copy with a head that follows the owner's view. The server delivers knockdowns.
+    /// kinematic copy whose head follows the owner's view and whose bones flop (RagdollRig) whenever
+    /// the owner is ragdolled. The server delivers knockdowns.
     /// </summary>
+    [DefaultExecutionOrder(100)]   // after CharacterAnimator, so the head aim wins
     public class PlayerNet : NetworkBehaviour
     {
         public Camera playerCamera;
@@ -15,6 +17,8 @@ namespace Roadkill
         public Transform head;
         public Renderer[] bodyRenderers;
         public Renderer[] tintRenderers;
+        public RagdollRig ragdoll;
+        public CharacterAnimator animator;
 
         public PlayerMotor Motor { get; private set; }
         public HandsController Hands { get; private set; }
@@ -22,19 +26,28 @@ namespace Roadkill
 
         static readonly Color[] PlayerColors =
         {
-            new Color(0.95f, 0.45f, 0.2f),
-            new Color(0.25f, 0.6f, 0.95f),
-            new Color(0.4f, 0.8f, 0.3f),
-            new Color(0.9f, 0.8f, 0.2f),
+            new Color(1.00f, 0.45f, 0.08f),   // orange
+            new Color(0.20f, 0.55f, 0.95f),   // blue
+            new Color(0.35f, 0.80f, 0.25f),   // green
+            new Color(0.95f, 0.80f, 0.15f),   // yellow
         };
 
+        // Written by the owner: is this player down right now? Drives everyone else's ragdoll.
+        NetworkVariable<bool> ragdolled = new NetworkVariable<bool>(false,
+            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
         float lastKnockdownTime = -99f;
+        Quaternion headRestRelative = Quaternion.identity;
+        Vector3 lastPosition;
+        Vector3 velocity;
 
         void Awake()
         {
             Motor = GetComponent<PlayerMotor>();
             Hands = GetComponent<HandsController>();
             Health = GetComponent<PlayerHealth>();
+            // The head bone's rest orientation relative to the body, whatever axes the model uses.
+            if (head != null) headRestRelative = Quaternion.Inverse(transform.rotation) * head.rotation;
         }
 
         public override void OnNetworkSpawn()
@@ -46,10 +59,17 @@ namespace Roadkill
             var hud = GetComponent<DebugHud>();
             if (hud != null) hud.enabled = mine;
             foreach (var r in bodyRenderers) r.enabled = !mine;
+            // You never see your own body, and its bone colliders would trip your ground check.
+            if (mine)
+            {
+                if (ragdoll != null) ragdoll.SetCollidersEnabled(false);
+                if (animator != null) animator.enabled = false;
+            }
 
             Color color = PlayerColors[(int)(OwnerClientId % (ulong)PlayerColors.Length)];
             foreach (var r in tintRenderers) r.material.color = color;
             name = mine ? "Player (you)" : $"Player {OwnerClientId}";
+            lastPosition = transform.position;
 
             if (mine)
             {
@@ -62,10 +82,26 @@ namespace Roadkill
             }
         }
 
+        void Update()
+        {
+            if (!IsSpawned) return;
+            if (IsOwner)
+            {
+                if (ragdolled.Value != Motor.IsRagdolled) ragdolled.Value = Motor.IsRagdolled;
+                return;
+            }
+
+            float dt = Mathf.Max(Time.deltaTime, 0.0001f);
+            velocity = Vector3.Lerp(velocity, (transform.position - lastPosition) / dt, 0.5f);
+            lastPosition = transform.position;
+            if (ragdoll != null) ragdoll.SetActive(ragdolled.Value, velocity);
+        }
+
         void LateUpdate()
         {
             if (!IsSpawned || IsOwner || head == null) return;
-            head.rotation = Hands.ViewRotation;
+            if (ragdoll != null && ragdoll.IsActive) return;
+            head.rotation = Hands.ViewRotation * headRestRelative;
         }
 
         /// <summary>Server only: knock this player down on their own machine.</summary>

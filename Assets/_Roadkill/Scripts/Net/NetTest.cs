@@ -15,6 +15,8 @@ namespace Roadkill
         public float runSeconds = 12f;
         [Tooltip("Stand in the swinging log's path instead of carrying the crate.")]
         public bool logMode;
+        [Tooltip("Walk in a circle at walking speed, for checking the walk animation from outside.")]
+        public bool walkMode;
 
         IEnumerator Start()
         {
@@ -30,6 +32,11 @@ namespace Roadkill
             if (logMode)
             {
                 yield return StandInLogPath(player);
+                yield break;
+            }
+            if (walkMode)
+            {
+                yield return WalkInCircles(player);
                 yield break;
             }
             var crate = FindCrate();
@@ -57,6 +64,23 @@ namespace Roadkill
                     $"my speed x{hands.SpeedMultiplier:0.00} voice packets received={VoiceChat.PacketsReceived}");
             }
             Log("done");
+        }
+
+        IEnumerator WalkInCircles(NetworkObject player)
+        {
+            var motor = player.GetComponent<PlayerMotor>();
+            Vector3 center = new Vector3(0f, 0.02f, -5f);
+            const float radius = 3f, speed = 3f;
+            Log("walking in circles");
+            for (float t = 0f; t < runSeconds * 3f; t += Time.fixedDeltaTime)
+            {
+                float a = t * speed / radius;
+                Vector3 position = center + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius;
+                Vector3 ahead = center + new Vector3(Mathf.Cos(a + 0.3f), 0f, Mathf.Sin(a + 0.3f)) * radius;
+                motor.DebugPlace(position, ahead + Vector3.up * 1.6f);
+                yield return new WaitForFixedUpdate();
+            }
+            Log("done walking");
         }
 
         IEnumerator StandInLogPath(NetworkObject player)

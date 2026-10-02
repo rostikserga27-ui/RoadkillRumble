@@ -16,6 +16,8 @@ namespace Roadkill
     {
         public Transform mouthPoint;
         public Transform mouthVisual;
+        [Tooltip("How many times taller the mouth gets at full volume.")]
+        public float mouthOpenStretch = 5f;
         public float range = 25f;
         public float openMicThreshold = 0.012f;
         public float hangoverSeconds = 0.3f;
@@ -45,6 +47,8 @@ namespace Roadkill
         readonly Queue<float> playQueue = new Queue<float>();
         bool playing;
         float mouthLevel;
+        Vector3 mouthRestScale;
+        int mouthAxis = 1;
         float nextOcclusionCheck;
         AudioListener cachedListener;
 
@@ -246,8 +250,17 @@ namespace Roadkill
             if (mouthVisual == null) return;
             float level = IsOwner && !Loopback ? (Transmitting ? InputLevel : 0f) : mouthLevel;
             float open = Mathf.Clamp01(level * 12f);
-            Vector3 scale = mouthVisual.localScale;
-            mouthVisual.localScale = new Vector3(scale.x, Mathf.Lerp(0.03f, 0.16f, open), scale.z);
+            if (mouthRestScale == Vector3.zero)
+            {
+                mouthRestScale = mouthVisual.localScale;
+                // Whichever local axis of the jaw / mouth points most nearly up is the one that opens.
+                Vector3 up = mouthVisual.InverseTransformDirection(transform.up);
+                Vector3 a = new Vector3(Mathf.Abs(up.x), Mathf.Abs(up.y), Mathf.Abs(up.z));
+                mouthAxis = a.x > a.y && a.x > a.z ? 0 : a.y > a.z ? 1 : 2;
+            }
+            Vector3 scale = mouthRestScale;
+            scale[mouthAxis] *= Mathf.Lerp(1f, mouthOpenStretch, open);
+            mouthVisual.localScale = scale;
             mouthLevel = Mathf.MoveTowards(mouthLevel, 0f, Time.deltaTime * 0.5f);
         }
 

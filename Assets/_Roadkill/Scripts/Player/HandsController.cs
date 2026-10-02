@@ -45,6 +45,8 @@ namespace Roadkill
 
         [Header("Grab")]
         public Camera viewCamera;
+        [Tooltip("First-person sleeve-and-hand model (left hand; mirrored for the right). Cubes if empty.")]
+        public GameObject handModel;
         public float reach = 2.6f;
         public float capacityPerHandKg = 20f;
         [Tooltip("Let go automatically when the grip is pulled this far from the hand.")]
@@ -267,16 +269,29 @@ namespace Roadkill
 
         void CreateVisual(Hand hand, string handName)
         {
-            // Placeholder cartoon hand: a chunky skin-coloured block in the corner of the view.
-            var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject visual;
+            if (handModel != null)
+            {
+                // Sleeve-and-hand model; the right one is a mirror of the left.
+                visual = Instantiate(handModel);
+                visual.transform.SetParent(viewCamera.transform, false);
+                // Keep the import's own axis fix-up and turn it so the sleeve runs back toward the camera.
+                visual.transform.localRotation = Quaternion.Euler(0f, 180f, 0f) * handModel.transform.localRotation;
+                visual.transform.localScale = new Vector3(hand.Index == 1 ? -1f : 1f, 1f, 1f);
+            }
+            else
+            {
+                // Placeholder cartoon hand: a chunky skin-coloured block in the corner of the view.
+                visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                DestroyImmediate(visual.GetComponent<Collider>());
+                visual.transform.SetParent(viewCamera.transform, false);
+                visual.transform.localScale = new Vector3(0.12f, 0.07f, 0.16f);
+                visual.GetComponent<Renderer>().sharedMaterial = RkMaterials.Get(new Color(1f, 0.8f, 0.62f));
+            }
             visual.name = $"{handName}Hand";
-            DestroyImmediate(visual.GetComponent<Collider>());
-            visual.transform.SetParent(viewCamera.transform, false);
             visual.transform.localPosition = hand.RestOffset;
-            visual.transform.localScale = new Vector3(0.12f, 0.07f, 0.16f);
-            var visualRenderer = visual.GetComponent<Renderer>();
-            visualRenderer.sharedMaterial = RkMaterials.Get(new Color(1f, 0.8f, 0.62f));
-            visualRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            foreach (var r in visual.GetComponentsInChildren<Renderer>())
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             hand.Visual = visual.transform;
         }
 

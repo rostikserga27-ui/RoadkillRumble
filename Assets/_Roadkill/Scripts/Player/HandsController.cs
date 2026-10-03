@@ -99,6 +99,9 @@ namespace Roadkill
         PlayerMotor motor;
         Collider[] ownColliders;
         float throwPunch;   // first-person hands: seconds left of the throw's forward jab
+        readonly Vector3[] fistOffset = new Vector3[2];   // first-person punch pose (PlayerFists)
+        readonly float[] fistCurl = new float[2];
+        readonly bool[] fistActive = new bool[2];
 
         void Awake()
         {
@@ -326,6 +329,15 @@ namespace Roadkill
             else { SpeedMultiplier = 0.45f; CanSprint = false; }
         }
 
+        /// <summary>First-person punch pose of a hand (PlayerFists): an offset in view space and a wrist curl in degrees.</summary>
+        public void SetFistPose(int hand, Vector3 offset, float curl, bool active)
+        {
+            if (hand < 0 || hand > 1) return;
+            fistOffset[hand] = offset;
+            fistCurl[hand] = curl;
+            fistActive[hand] = active;
+        }
+
         void CreateVisual(Hand hand, string handName)
         {
             GameObject visual;
@@ -366,10 +378,12 @@ namespace Roadkill
             // Winding up a throw draws the hands back and up; letting go jabs them forward.
             local += new Vector3(0f, 0.07f, -0.2f) * ThrowCharge;
             local += Vector3.forward * (0.3f * Mathf.Sin(Mathf.Clamp01(throwPunch / 0.25f) * Mathf.PI));
-            float k = 1f - Mathf.Exp(-20f * Time.deltaTime);
+            if (held == null) local += fistOffset[hand.Index];
+            // A punch has to snap: follow it much more tightly than the idle sway.
+            float k = 1f - Mathf.Exp(-(fistActive[hand.Index] ? 60f : 20f) * Time.deltaTime);
             hand.Visual.localPosition = Vector3.Lerp(hand.Visual.localPosition, local, k);
             // Gripping curls the wrist down; a wind-up cocks it back.
-            float curl = (held != null ? 20f : 0f) - 35f * ThrowCharge;
+            float curl = (held != null ? 20f : 0f) - 35f * ThrowCharge + (held == null ? fistCurl[hand.Index] : 0f);
             Quaternion pose = Quaternion.AngleAxis(curl, Vector3.right) * hand.VisualRestRotation;
             hand.Visual.localRotation = Quaternion.Slerp(hand.Visual.localRotation, pose, k);
         }

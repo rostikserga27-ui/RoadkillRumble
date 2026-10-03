@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 3505325924002683458}
   - component: {fileID: 586978373018951518}
   - component: {fileID: 9026866641367395650}
+  - component: {fileID: 5377254073260716286}
   m_Layer: 0
   m_Name: PlaygroundRules
   m_TagString: Untagged
@@ -72,4 +73,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f215f323482920e63a96964d54c5ac25, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Roadkill.PlaygroundRules
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &5377254073260716286
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910807018244436427}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fbcf5f73abe7a344f8d72be16ce6c3e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.FriendlyFire
   ShowTopMostFoldoutHeaderGroup: 1

@@ -24,6 +24,9 @@ namespace Roadkill
     ///
     /// Active and limp ("Ragdoll Mode") blend over modeBlendSeconds. Limp comes from SetLimp, from the
     /// player being ragdolled (PlayerMotor locally, PlayerNet for remote copies) or from a hard knock.
+    ///
+    /// Punches (PunchArmDriver) take an arm over with SetArmDriven and twist and lean the torso with
+    /// SetTorsoOffset; a punched body staggers (Stagger) with its joints softened for a moment.
     /// Built by the prefab generator (FishermanRagdollBuilder); values below are the tuned defaults.
     /// </summary>
     public class ActiveRagdollController : MonoBehaviour
@@ -168,6 +171,11 @@ namespace Roadkill
         float weight = 1f;
         bool manualLimp, rootLimp, simulated = true;
         float knockoutTimer, staggerTimer;
+        const float DefaultStaggerStiffness = 0.45f;
+        float staggerStiffness = DefaultStaggerStiffness;   // joint strength while staggered
+        readonly bool[] armDriven = new bool[2];             // a punch has this arm
+        float extraLean, extraTwist;                         // degrees, from a punch
+        float extraStep;                                     // metres the hips go ahead of the capsule, from a punch
         Vector3 lastRootPosition, rootVelocity, rootAcceleration;
         float speed, phase, air;
         Quaternion look;
@@ -273,9 +281,10 @@ namespace Roadkill
             bool crouching = motor != null && motor.enabled ? motor.IsCrouching : remoteCrouch;
             crouch = Mathf.MoveTowards(crouch, crouching && !IsLimp ? 1f : 0f, dt * 5f);
             staggerTimer = Mathf.Max(0f, staggerTimer - dt);
+            if (staggerTimer <= 0f) staggerStiffness = DefaultStaggerStiffness;
             throwSwingTimer = Mathf.Max(0f, throwSwingTimer - dt);
             for (int i = 0; i < 2; i++)
-                reachWeight[i] = Mathf.MoveTowards(reachWeight[i], reaching[i] || throwSwingTimer > 0f ? 1f : 0f, dt * 6f);
+                reachWeight[i] = armDriven[i] ? 1f : Mathf.MoveTowards(reachWeight[i], reaching[i] || throwSwingTimer > 0f ? 1f : 0f, dt * 6f);
             weight = Mathf.MoveTowards(weight, IsLimp ? 0f : 1f, dt / Mathf.Max(0.01f, modeBlendSeconds));
             TrackRoot(dt);
 
@@ -337,7 +346,7 @@ namespace Roadkill
 
         void UpdateDrives()
         {
-            float soft = Mathf.Lerp(1f, 0.5f, air) * (staggerTimer > 0f ? 0.45f : 1f);
+            float soft = Mathf.Lerp(1f, 0.5f, air) * (staggerTimer > 0f ? staggerStiffness : 1f);
             foreach (var p in parts)
             {
                 if (p.joint == null) continue;
@@ -357,7 +366,7 @@ namespace Roadkill
         /// <summary>Hips chase the capsule; hips and chest are righted toward the capsule's facing.</summary>
         void Balance()
         {
-            float s = weight * balanceStrength * PlaygroundRules.BalanceScale * (staggerTimer > 0f ? 0.5f : 1f);
+            float s = weight * balanceStrength * PlaygroundRules.BalanceScale * (staggerTimer > 0f ? staggerStiffness + 0.05f : 1f);
             float walk = Mathf.Clamp01(speed / fullStrideSpeed);
             float t = Time.time;
 
@@ -365,7 +374,7 @@ namespace Roadkill
             float height = hipHeight - (IsGrounded ? sink * (1f - walk) : 0f) + bob;
             height *= Mathf.Lerp(1f, 0.72f, crouch);
             Vector3 sway = new Vector3(Mathf.PerlinNoise(t * 0.6f, 3.1f) - 0.5f, 0f, Mathf.PerlinNoise(7.7f, t * 0.6f) - 0.5f) * (0.06f * wobbleAmount);
-            Vector3 target = root.position + Vector3.up * height + root.rotation * sway;
+            Vector3 target = root.position + Vector3.up * height + root.rotation * sway + Facing() * Vector3.forward * extraStep;
 
             var body = hips.body;
             Vector3 acceleration = (target - body.position) * hipSpring + (rootVelocity - body.linearVelocity) * hipDamping;
@@ -376,14 +385,15 @@ namespace Roadkill
             else body.AddForce((acceleration + lift) * (totalMass * s), ForceMode.Force);
 
             // Lean into the direction of travel (and of acceleration), back while winding up a throw,
-            // forward as it lets go.
+            // forward as it lets go. A punch adds its own lean and twists the torso about the vertical.
             Quaternion facing = Facing();
             Vector3 accel = Quaternion.Inverse(facing) * rootAcceleration;
             float leanForward = lean * walk * move.z + Mathf.Clamp(accel.z, -6f, 10f) + crouchLean * crouch
-                                - throwWindUp * throwCharge + (throwSwingTimer > 0f ? throwLunge : 0f);
+                                - throwWindUp * throwCharge + (throwSwingTimer > 0f ? throwLunge : 0f) + extraLean;
             leanForward += CarryLean(facing * Vector3.forward);
             float leanSide = (lean * walk * move.x + Mathf.Clamp(accel.x, -6f, 6f)) * sideLean;
-            Quaternion upright = facing * Quaternion.AngleAxis(leanForward, Vector3.right) * Quaternion.AngleAxis(-leanSide, Vector3.forward);
+            Quaternion upright = facing * Quaternion.AngleAxis(extraTwist, Vector3.up)
+                                 * Quaternion.AngleAxis(leanForward, Vector3.right) * Quaternion.AngleAxis(-leanSide, Vector3.forward);
 
             // Stack the upper body over the hips: each torso part is pulled toward where it sits above the
             // hips in the rest pose (turned to the facing and lean). Forces through the joints right the
@@ -552,7 +562,7 @@ namespace Roadkill
             for (int i = 0; i < 2; i++)
             {
                 var hand = hands[i];
-                if (hand == null || upperArms[i] == null || reachWeight[i] <= 0f) continue;
+                if (hand == null || upperArms[i] == null || reachWeight[i] <= 0f || armDriven[i]) continue;
                 if (!reaching[i] && throwSwingTimer <= 0f) continue;   // letting go: the arm just eases back
                 Vector3 shoulder = upperArms[i].body.position;
                 float armLength = Vector3.Distance(upperArms[i].restPosition, hand.restPosition);
@@ -699,6 +709,57 @@ namespace Roadkill
 
         /// <summary>Remote copies: crouch like the owner does.</summary>
         public void SetCrouch(bool crouching) => remoteCrouch = crouching;
+
+        // --------------------------------------------------------------------------- punching
+
+        public Rigidbody HandBody(int hand) => hands[Mathf.Clamp(hand, 0, 1)]?.body;
+        public Rigidbody LowerArmBody(int hand) => lowerArms[Mathf.Clamp(hand, 0, 1)]?.body;
+        public Rigidbody UpperArmBody(int hand) => upperArms[Mathf.Clamp(hand, 0, 1)]?.body;
+        public Rigidbody Chest => chest?.body;
+        public float TotalMass => totalMass;
+        /// <summary>Shoulder to wrist at full stretch (metres).</summary>
+        public float ArmLength(int hand) => Vector3.Distance(upperArms[Mathf.Clamp(hand, 0, 1)].restPosition, hands[Mathf.Clamp(hand, 0, 1)].restPosition);
+        /// <summary>The character's frame: the capsule's yaw.</summary>
+        public Quaternion FacingRotation => Facing();
+        /// <summary>The capsule's velocity as the body tracks it (smoothed for remote copies).</summary>
+        public Vector3 RootVelocity => rootVelocity;
+        public Collider RootCollider => rootCollider;
+        public bool IsSimulated => simulated;
+        public bool OwnsBody(Rigidbody body) => body != null && ownBodies.Contains(body);
+        public Role PartRole(int index) => parts[index].role;
+        public float PartSide(int index) => parts[index].side;
+
+        public int PartIndexOf(Rigidbody body)
+        {
+            for (int i = 0; i < parts.Length; i++)
+                if (parts[i].body == body) return i;
+            return -1;
+        }
+
+        /// <summary>A punch takes this arm over: its joints go soft and the gait, reach and throw leave it alone.</summary>
+        public void SetArmDriven(int hand, bool driven)
+        {
+            if (hand >= 0 && hand < 2) armDriven[hand] = driven;
+        }
+
+        /// <summary>
+        /// Extra torso lean (degrees, forward positive), twist about the vertical (degrees) and a step of the hips
+        /// ahead of the capsule (metres) from a punch: the body steps into it while the gameplay capsule stays put.
+        /// </summary>
+        public void SetTorsoOffset(float leanDegrees, float twistDegrees, float stepMetres = 0f)
+        {
+            extraLean = leanDegrees;
+            extraTwist = twistDegrees;
+            extraStep = stepMetres;
+        }
+
+        /// <summary>Wobble after a hit: joints at `stiffness` (0..1) of their strength and balance about as weak, for `seconds`.</summary>
+        public void Stagger(float seconds, float stiffness)
+        {
+            if (seconds <= 0f) return;
+            staggerStiffness = staggerTimer > 0f ? Mathf.Min(staggerStiffness, stiffness) : stiffness;
+            staggerTimer = Mathf.Max(staggerTimer, seconds);
+        }
 
         public int PartCount => parts.Length;
         public Rigidbody PartBody(int index) => parts[index].body;

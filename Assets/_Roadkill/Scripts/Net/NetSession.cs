@@ -31,6 +31,7 @@ namespace Roadkill
 
         void Awake()
         {
+            FriendlyFire.InitLobbyDefault();
             CreateLobbyCamera();
             SteamBootstrap.Ensure();
             manager = NetworkManager.Singleton != null ? NetworkManager.Singleton : CreateManager();
@@ -62,6 +63,8 @@ namespace Roadkill
                 if (args[i] == "-rktestlog") gameObject.AddComponent<NetTest>().logMode = true;
                 if (args[i] == "-rktestwalk") gameObject.AddComponent<NetTest>().walkMode = true;
                 if (args[i] == "-rktestfly") gameObject.AddComponent<NetTest>().flyMode = true;
+                if (args[i] == "-rktestpunch") gameObject.AddComponent<PunchAutotest>();
+                if (args[i] == "-rktestpunchvictim") gameObject.AddComponent<PunchAutotest>().victimMode = true;
             }
         }
 
@@ -193,7 +196,7 @@ namespace Roadkill
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
-            var area = new Rect(Screen.width * 0.5f - 190f, Screen.height * 0.5f - 190f, 380f, 380f);
+            var area = new Rect(Screen.width * 0.5f - 190f, Screen.height * 0.5f - 205f, 380f, 410f);
             GUI.Box(area, "");
             GUILayout.BeginArea(new Rect(area.x + 16f, area.y + 12f, area.width - 32f, area.height - 24f));
             GUILayout.Label("ROADKILL RUMBLE — prototype", style);
@@ -207,6 +210,9 @@ namespace Roadkill
 
             bool connecting = manager.IsClient && !manager.IsConnectedClient;
             GUI.enabled = !connecting;
+
+            // The host's choice; it can be changed later in the F9 panel.
+            FriendlyFire.LobbyFriendlyFire = GUILayout.Toggle(FriendlyFire.LobbyFriendlyFire, " Friendly fire (when hosting): punches hurt friends");
 
             // Steam
             if (SteamBootstrap.Initialized)

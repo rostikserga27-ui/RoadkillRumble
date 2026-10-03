@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "11";
+        const string BuildVersion = "12";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -57,6 +57,7 @@ namespace Roadkill.EditorTools
             var rules = new GameObject(PlaygroundRules.PrefabName);
             rules.AddComponent<NetworkObject>();
             rules.AddComponent<PlaygroundRules>();
+            rules.AddComponent<FriendlyFire>();   // the host's friendly-fire switches ride on the same object
             Save(rules, PlaygroundRules.PrefabName);
 
             File.WriteAllText(VersionFile, BuildVersion);
@@ -158,6 +159,8 @@ namespace Roadkill.EditorTools
             net.palette = palette;
             net.body = ragdoll;
             if (ragdoll != null) go.AddComponent<RagdollPoseSync>();   // others see a downed body as its owner does
+            go.AddComponent<PunchReaction>();
+            go.AddComponent<PlayerFists>();   // physical punches with the ragdoll's own arms
             return go;
         }
 

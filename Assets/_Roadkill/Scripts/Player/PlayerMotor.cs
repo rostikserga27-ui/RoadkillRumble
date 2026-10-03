@@ -89,6 +89,7 @@ namespace Roadkill
         float launchGrace;
         float bodyFallSpeed;      // down: the hips' downward speed going into this physics step
         float bodyLandCooldown;
+        float stumbleTimer;       // shoved: the feet barely grip, so the push carries
 
         void Start()
         {
@@ -215,6 +216,7 @@ namespace Roadkill
 
             launchGrace -= dt;
             if (launched && IsGrounded && launchGrace <= 0f) launched = false;
+            stumbleTimer -= dt;
 
             // Steering is relative to the floor: a moving floor carries you, a slippery one barely lets you steer.
             float grip = Mathf.Min(groundSurface != null ? groundSurface.grip : 1f, PlaygroundRules.MaxGrip);
@@ -232,7 +234,8 @@ namespace Roadkill
             }
             // In the air you steer, but extra momentum (a launch, a fling off the merry-go-round) is kept.
             bool flying = launched || new Vector2(v.x, v.z).magnitude > speed + 1f;
-            float accel = IsGrounded ? groundAcceleration * Mathf.Max(0.05f, grip) : airAcceleration * (flying ? 0.25f : 1f);
+            float accel = IsGrounded ? groundAcceleration * Mathf.Max(0.05f, grip) * (stumbleTimer > 0f ? 0.12f : 1f)
+                                     : airAcceleration * (flying ? 0.25f : 1f);
             Vector3 horizontal = carry + Vector3.MoveTowards(new Vector3(v.x, 0f, v.z) - carry, wish, accel * dt);
 
             float vertical = v.y;
@@ -489,6 +492,29 @@ namespace Roadkill
             launched = true;
             launchGrace = 0.2f;
             jumpQueued = false;
+        }
+
+        /// <summary>
+        /// A push from outside (a punch, or your own lunge into one): adds speed, and for `stumbleSeconds` the
+        /// feet barely grip so the push carries instead of being walked off at once. While down the body takes it.
+        /// </summary>
+        public void Shove(Vector3 velocity, float stumbleSeconds)
+        {
+            if (rb == null) return;
+            if (state != State.Normal)
+            {
+                if (bodyLeads) body.AddVelocity(velocity);
+                else if (!rb.isKinematic) rb.AddForce(velocity, ForceMode.VelocityChange);
+                return;
+            }
+            rb.linearVelocity += velocity;
+            stumbleTimer = Mathf.Max(stumbleTimer, stumbleSeconds);
+            if (velocity.y > 1f)
+            {
+                // Lifted off the feet: keep the momentum through the air.
+                launched = true;
+                launchGrace = 0.2f;
+            }
         }
 
         /// <summary>Put the player somewhere, standing, with empty hands (respawn, gathering).</summary>

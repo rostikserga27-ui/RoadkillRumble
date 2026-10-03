@@ -113,6 +113,12 @@ namespace Roadkill
         [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
         void ActionRpc(int action, RpcParams rpcParams = default) => ServerAction((Action)action, rpcParams.Receive.SenderClientId);
 
+        /// <summary>Server: a line in everyone's feed.</summary>
+        public void Announce(string text)
+        {
+            if (IsServer) AnnounceRpc(text);
+        }
+
         [Rpc(SendTo.Everyone)]
         void AnnounceRpc(string text)
         {
@@ -195,7 +201,7 @@ namespace Roadkill
 
             if (!open) return;
             var area = new Rect(Screen.width - 470f, 80f, 450f, 44f + Titles.Length * 28f + 6f + 4f * 34f + 20f);
-            PlayerMotor.UiHasCursor = area.Contains(Event.current.mousePosition);
+            PlayerMotor.UiHasCursor = area.Contains(Event.current.mousePosition) || FriendlyFire.PanelContains(Event.current.mousePosition);
             GUI.Box(area, "");
             GUILayout.BeginArea(new Rect(area.x + 12f, area.y + 8f, area.width - 24f, area.height - 16f));
             GUILayout.Label("PLAYGROUND RULES (F9) — for everyone", titleStyle);

@@ -15,6 +15,7 @@ namespace Roadkill
             "WASD move   Shift sprint   Ctrl crouch   Space jump\n" +
             "LMB / RMB hold: grab with left / right hand\n" +
             "G hold, then release: throw what you hold\n" +
+            "F tap: jab   F hold: haymaker (fists take turns)\n" +
             "C hold: play possum   Space while down: get up faster\n" +
             "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
             "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
@@ -22,6 +23,7 @@ namespace Roadkill
         PlayerMotor motor;
         PlayerHealth health;
         HandsController hands;
+        PlayerFists fists;
         VoiceChat voice;
         Camera viewCamera;
         GUIStyle label;
@@ -33,6 +35,7 @@ namespace Roadkill
             motor = GetComponent<PlayerMotor>();
             health = GetComponent<PlayerHealth>();
             hands = GetComponent<HandsController>();
+            fists = GetComponent<PlayerFists>();
             voice = GetComponent<VoiceChat>();
             viewCamera = hands != null ? hands.viewCamera : Camera.main;
         }
@@ -72,6 +75,13 @@ namespace Roadkill
             Bar(new Rect(20f, h - 64f, 240f, 20f), health.Health / health.maxHealth, new Color(1f, 0.55f, 0.1f),
                 $"FUEL {Mathf.CeilToInt(health.Health)}");
             Bar(new Rect(20f, h - 38f, 240f, 14f), motor.Stamina / motor.sprintStaminaSeconds, new Color(0.3f, 0.8f, 1f), "RPM");
+            if (fists != null)
+            {
+                Bar(new Rect(20f, h - 88f, 240f, 14f), fists.Stamina01, fists.Tired ? new Color(1f, 0.3f, 0.3f) : new Color(1f, 0.85f, 0.3f),
+                    fists.Tired ? "FISTS - too tired" : "FISTS");
+                if (fists.Charge > 0f)
+                    Bar(new Rect(w * 0.5f - 80f, h * 0.5f + 42f, 160f, 8f), fists.Charge, new Color(1f, 0.5f, 0.2f), "");
+            }
 
             GUI.Label(new Rect(w - 380f, h - 62f, 360f, 24f), HandText("L", hands, hands.Left), label);
             GUI.Label(new Rect(w - 380f, h - 38f, 360f, 24f), HandText("R", hands, hands.Right), label);
@@ -111,8 +121,9 @@ namespace Roadkill
                 GUI.color = previous;
             }
 
-            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 120f), Help, label);
+            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 140f), Help, label);
             string rules = PlaygroundRules.Summary();
+            if (!FriendlyFire.Enabled) rules = rules.Length > 0 ? rules + ", friendly fire off" : "Friendly fire off";
             if (rules.Length > 0)
                 GUI.Label(new Rect(w - 380f, 44f, 360f, 48f), $"Rules: {rules}", label);
             if (Cursor.lockState != CursorLockMode.Locked && !PlaygroundRules.PanelOpen)

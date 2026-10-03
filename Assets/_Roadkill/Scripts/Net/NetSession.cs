@@ -65,6 +65,7 @@ namespace Roadkill
                 if (args[i] == "-rktestfly") gameObject.AddComponent<NetTest>().flyMode = true;
                 if (args[i] == "-rktestpunch") gameObject.AddComponent<PunchAutotest>();
                 if (args[i] == "-rktestpunchvictim") gameObject.AddComponent<PunchAutotest>().victimMode = true;
+                if (args[i] == "-rktestduel") gameObject.AddComponent<PunchAutotest>().duelMode = true;
             }
         }
 

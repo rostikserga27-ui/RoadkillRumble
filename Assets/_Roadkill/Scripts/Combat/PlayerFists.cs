@@ -5,8 +5,9 @@ using UnityEngine;
 namespace Roadkill
 {
     /// <summary>
-    /// Fists (GDD phase 1, step 10): F punches with whichever hand is free, alternating; a tap is a jab,
-    /// holding winds up a haymaker. The punch is physical: PunchArmDriver swings the active ragdoll's own
+    /// Fists (GDD phase 1, step 10): the left mouse button punches with whichever hand is free, alternating;
+    /// a tap is a jab, holding winds up a haymaker. A target under the crosshair within punchRange is "in
+    /// reach" (the HUD shows it) and the punch steps in to land on it. The punch is physical: PunchArmDriver swings the active ragdoll's own
     /// arm on every peer, and hits are the fist's real collisions.
     ///
     /// Networking, in the same spirit as the rest of the game (the owner moves itself, the server decides
@@ -63,6 +64,9 @@ namespace Roadkill
         public float Stamina01 => config != null ? stamina / config.maxStamina : 1f;
         /// <summary>The charge of a fist being wound up (owner), for the HUD.</summary>
         public float Charge { get; private set; }
+        /// <summary>Owner: a player, prop or NPC under the crosshair within punching range.</summary>
+        public bool TargetInRange { get; private set; }
+        public string TargetName { get; private set; } = "";
         /// <summary>Tried to punch without the stamina for it, just now.</summary>
         public bool Tired => Time.time - tiredTime < 0.8f;
 
@@ -81,6 +85,8 @@ namespace Roadkill
         int sequence;
         float stamina;
         float lastSpend = -99f, lastStrike = -99f, tiredTime = -99f;
+        bool cursorWasLocked;      // the click that locks the cursor is not a punch
+        Vector3 targetPoint;
         // Hits the owner already played locally, so the server's echo does not play them twice.
         readonly List<(int sequence, ulong target, float time)> predicted = new List<(int, ulong, float)>();
 
@@ -150,8 +156,11 @@ namespace Roadkill
 
             var fallCamera = Player.FallCamera;
             bool testing = Time.time < debugUntil;
-            bool canAct = (Cursor.lockState == CursorLockMode.Locked || testing) && !Player.Motor.IsRagdolled
+            bool locked = Cursor.lockState == CursorLockMode.Locked;
+            bool canAct = ((locked && cursorWasLocked) || testing) && !Player.Motor.IsRagdolled
                           && (fallCamera == null || !fallCamera.IsTransitioning);
+            cursorWasLocked = locked;
+            SenseTarget();
             if ((RkInput.PunchPressed || debugPress) && canAct) StartWindUp();
             debugPress = false;
             debugHold -= dt;
@@ -235,7 +244,7 @@ namespace Roadkill
             stamina = Mathf.Max(0f, stamina - config.Cost(fist.Charge));
             lastSpend = lastStrike = Time.time;
             fist.Sequence = ++sequence;
-            fist.StrikeSeconds = config.StrikeSeconds(fist.Charge);
+            fist.StrikeSeconds = config.StrikeSeconds(fist.Charge) + config.StepIn(fist.Charge);
             fist.Hit.Clear();
             EnterPhase(fist, PunchArmDriver.Phase.Strike);
 
@@ -245,12 +254,16 @@ namespace Roadkill
             Vector3 aim = aimPoint - Player.Motor.cameraPivot.position;
             PunchFx.PlayWhoosh(Driver.Body.HandBody(fist.Index).position, fist.Charge);
 
-            // Step into it: a little for a jab, a real lunge for a haymaker.
+            // Step into it: a target in range but beyond arm's length is dashed at (the arm waits for the body,
+            // PunchArmDriver); otherwise a little step for a jab, a real lunge for a haymaker.
             if (Player.Motor.IsGrounded)
             {
+                float gap = Vector3.ProjectOnPlane(targetPoint - transform.position, Vector3.up).magnitude;
                 Vector3 flat = Vector3.ProjectOnPlane(aim, Vector3.up);
-                float lunge = config.lungeSpeed * Mathf.Lerp(config.jabLungeShare, 1f, fist.Charge);
-                if (flat.sqrMagnitude > 0.01f) Player.Motor.Shove(flat.normalized * lunge, 0.15f);
+                if (TargetInRange && gap > config.comfortableDistance + 0.05f)
+                    Player.Motor.Dash(targetPoint, config.comfortableDistance, config.approachSpeed, config.maxApproachSeconds);
+                else if (flat.sqrMagnitude > 0.01f)
+                    Player.Motor.Shove(flat.normalized * (config.lungeSpeed * Mathf.Lerp(config.jabLungeShare, 1f, fist.Charge)), 0.15f);
             }
         }
 
@@ -271,22 +284,49 @@ namespace Roadkill
         }
 
         /// <summary>
-        /// What the punch flies at: whatever is under the crosshair (a little into it), or a point at
-        /// maxAimDistance, so it lands where you look and not a shoulder's width to the side or at belly height.
-        /// Uses the eyes, not the shaking camera.
+        /// What is under the crosshair, from the eyes (not the shaking camera): the nearest thing within
+        /// punchRange that is not this player. A player, prop or NPC is a target in reach.
         /// </summary>
-        Vector3 AimPoint()
+        void SenseTarget()
         {
             Transform eyes = Player.Motor.cameraPivot;
             Vector3 look = ClampAim(eyes.forward);
-            float distance = config.maxAimDistance;
-            foreach (var hit in Physics.RaycastAll(eyes.position, look, config.maxAimDistance, ~0, QueryTriggerInteraction.Ignore))
+            RaycastHit nearest = default;
+            float nearestDistance = float.MaxValue;
+            foreach (var hit in Physics.RaycastAll(eyes.position, look, config.punchRange, ~0, QueryTriggerInteraction.Ignore))
             {
                 var body = hit.collider.attachedRigidbody;
                 if (body != null && (body.gameObject == gameObject || Driver.Body.OwnsBody(body))) continue;
-                distance = Mathf.Min(distance, hit.distance + 0.1f);   // a little into it
+                if (hit.distance < nearestDistance) { nearestDistance = hit.distance; nearest = hit; }
             }
-            return eyes.position + look * distance;
+            TargetInRange = false;
+            if (nearestDistance == float.MaxValue)
+            {
+                targetPoint = eyes.position + look * config.missAimDistance;
+                return;
+            }
+            targetPoint = nearest.point + look * 0.1f;   // a little into it
+            if (PunchHitResolver.FindTarget(nearest.collider, nearest.rigidbody, nearest.point, out var target, out var victim, out _, out _)
+                && victim != Player && !hands.IsHolding(nearest.rigidbody))
+            {
+                TargetInRange = true;
+                var prop = target.GetComponent<PhysicsProp>();
+                TargetName = victim != null ? PlayerNet.NameOf(victim.OwnerClientId) : prop != null ? prop.displayName : target.name;
+            }
+            else if (nearestDistance > config.missAimDistance)
+            {
+                targetPoint = eyes.position + look * config.missAimDistance;   // a wall further off: punch the air
+            }
+        }
+
+        /// <summary>
+        /// What the punch flies at: the target under the crosshair (or the wall), else a point in front, so it
+        /// lands where you look and not a shoulder's width to the side or at belly height.
+        /// </summary>
+        Vector3 AimPoint()
+        {
+            SenseTarget();
+            return targetPoint;
         }
 
         Vector3 ClampAim(Vector3 forward)
@@ -463,7 +503,7 @@ namespace Roadkill
             serverLastSpend = serverLastStrike = now;
             serverWindUp[hand] = -99f;
 
-            strikes[seq] = new StrikeRecord { Time = now, Live = config.StrikeSeconds(charge), Charge = charge, Hand = hand };
+            strikes[seq] = new StrikeRecord { Time = now, Live = config.LiveSeconds(charge), Charge = charge, Hand = hand };
             var stale = new List<int>();
             foreach (var pair in strikes)
                 if (now - pair.Value.Time > 3f) stale.Add(pair.Key);
@@ -471,8 +511,8 @@ namespace Roadkill
 
             // An aim point is somewhere in front of the eyes; anything else is nonsense (or a cheat).
             Vector3 eyes = transform.position + Vector3.up * 1.6f;
-            if ((aimPoint - eyes).sqrMagnitude > (config.maxAimDistance + 1.5f) * (config.maxAimDistance + 1.5f))
-                aimPoint = eyes + transform.forward * config.maxAimDistance;
+            if ((aimPoint - eyes).sqrMagnitude > (config.punchRange + 1.5f) * (config.punchRange + 1.5f))
+                aimPoint = eyes + transform.forward * config.missAimDistance;
             PlayStrikeRpc(hand, charge, aimPoint, seq);
         }
 

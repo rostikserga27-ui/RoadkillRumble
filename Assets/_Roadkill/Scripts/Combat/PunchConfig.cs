@@ -52,8 +52,16 @@ namespace Roadkill
         public float wristSpring = 250f;
         [Tooltip("Cap on the PD's acceleration (m/s^2), so the arm cannot fling the body around.")]
         public float maxArmAcceleration = 500f;
-        [Tooltip("The fist flies from the shoulder at what is under the crosshair, this far at most (metres).")]
-        public float maxAimDistance = 1.4f;
+        [Tooltip("Punching range: a player, prop or NPC under the crosshair this close to the eyes (metres) is in reach, the crosshair shows it, and the punch steps in to land.")]
+        public float punchRange = 1.7f;
+        [Tooltip("With nothing in range the fist flies at a point this far in front of the eyes (metres).")]
+        public float missAimDistance = 0.8f;
+        [Tooltip("Stepping in to a target beyond arm's length: the player dashes at it this fast (m/s) and stops this far from the aim point (capsule centre, metres; the aim point is 0.1 m inside the target).")]
+        public float approachSpeed = 5f;
+        public float comfortableDistance = 0.6f;
+        [Tooltip("The arm is thrown once the aim point is within arm's length plus this (metres), or after maxApproachSeconds of stepping in.")]
+        public float throwReach = 0.35f;
+        public float maxApproachSeconds = 0.35f;
         [Tooltip("How far the fist cocks back past the guard at full charge (metres).")]
         public float windUpPullBack = 0.12f;
         [Tooltip("Share of the strike's kick pushed back into the chest (recoil), so momentum stays sane.")]
@@ -67,7 +75,7 @@ namespace Roadkill
         public float windUpLean = 6f;
         public float strikeLean = 18f;
         [Tooltip("How far the body steps ahead of the gameplay capsule at full strike lean (metres).")]
-        public float strikeStepForward = 0.15f;
+        public float strikeStepForward = 0.25f;
         [Tooltip("A punch steps the player forward (m/s on the capsule): a jab a little, a full charge all of it.")]
         public float lungeSpeed = 2.4f;
         [Range(0f, 1f)] public float jabLungeShare = 0.45f;
@@ -79,7 +87,7 @@ namespace Roadkill
 
         [Header("Hit rule")]
         [Tooltip("Fist speed into the target along the contact normal below this is a brush, not a punch (m/s).")]
-        public float minImpactSpeed = 3.5f;
+        public float minImpactSpeed = 3f;
         [Tooltip("Body mass a full charge puts behind the fist, on top of the arm's own (kg).")]
         public float chargeBodyMass = 3f;
         [Tooltip("Momentum (kg m/s) treated as a full-power punch for feel and stagger.")]
@@ -91,6 +99,8 @@ namespace Roadkill
         public float damagePerMomentum = 0.55f;
         public float minDamage = 3f;
         public float maxDamage = 35f;
+        [Tooltip("A full charge deals this much more damage on top of its extra speed and weight (0.5 = +50%).")]
+        public float chargeDamageBonus = 0.5f;
         public float headDamageMultiplier = 1.5f;
         public float limbDamageMultiplier = 0.6f;
 
@@ -125,6 +135,8 @@ namespace Roadkill
         public float stumbleSeconds = 0.35f;
         [Tooltip("Momentum x zone multiplier at which a punch knocks the victim down (full ragdoll).")]
         public float knockdownMomentum = 45f;
+        [Tooltip("A punch charged at least this much that lands on the head always knocks down (1 = off).")]
+        [Range(0f, 1f)] public float headKnockdownCharge = 0.8f;
         public float knockdownSecondsMin = 1.2f;
         public float knockdownSecondsMax = 2.6f;
         [Tooltip("Upward pop on a knockdown (m/s at full power).")]
@@ -170,7 +182,7 @@ namespace Roadkill
         [Tooltip("A hit claim is accepted this long after the strike's live window ends (latency).")]
         public float claimLatencyAllowance = 0.35f;
         [Tooltip("Contact point at most this far from the attacker's chest (metres).")]
-        public float maxClaimDistanceFromAttacker = 2.4f;
+        public float maxClaimDistanceFromAttacker = 2.6f;
         [Tooltip("Contact point at most this far from the victim (metres, beyond their body).")]
         public float maxClaimDistanceFromTarget = 1.2f;
         [Tooltip("Reported fist speeds above this are clamped; above 1.5x it the claim is thrown out (m/s).")]
@@ -194,7 +206,10 @@ namespace Roadkill
             }
         }
 
-        public float StrikeSeconds(float charge) => Mathf.Lerp(strikeSecondsJab, strikeSecondsHaymaker, charge) + StepIn(charge);
+        /// <summary>How long the fist is live once the arm is thrown.</summary>
+        public float StrikeSeconds(float charge) => Mathf.Lerp(strikeSecondsJab, strikeSecondsHaymaker, charge);
+        /// <summary>From the strike starting to its fist going dead, at the longest (step-in and approach included).</summary>
+        public float LiveSeconds(float charge) => StrikeSeconds(charge) + StepIn(charge) + maxApproachSeconds;
         /// <summary>How long a punch of this charge steps in before the arm goes (none for a light jab).</summary>
         public float StepIn(float charge) => charge < 0.25f ? 0f : haymakerStepSeconds * charge;
         public float StrikeSpeed(float charge) => Mathf.Lerp(jabSpeed, haymakerSpeed, charge);

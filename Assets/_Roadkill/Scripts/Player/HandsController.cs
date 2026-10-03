@@ -7,8 +7,8 @@ namespace Roadkill
     /// <summary>
     /// Two independent first-person hands (GDD section 3), networked with the server in charge of physics.
     ///
-    /// Owner: reads input, aims, asks the server to grab / release / throw, publishes its view pose and
-    /// draws the hands. Server: keeps one kinematic anchor per hand in front of that player's view and
+    /// Owner: reads input (E takes hold with both hands and lets go, G throws), aims, asks the server to
+    /// grab / release / throw, publishes its view pose and draws the hands. Server: keeps one kinematic anchor per hand in front of that player's view and
     /// pulls the held prop toward it through a force-capped joint. Lifting power therefore adds up
     /// physically on the server: one hand lifts 20 kg, one player 40 kg, two players 80 kg, four 160 kg.
     /// Anything heavier sags and drags: the carry table's "needs more friends or a dolly" rule.
@@ -29,7 +29,6 @@ namespace Roadkill
             // Owner side
             public Transform Visual;
             public Quaternion VisualRestRotation;
-            public bool WasPressed;
             public Vector3 LocalGrip;             // grip point in the held prop's space
 
             // Server side
@@ -232,8 +231,7 @@ namespace Roadkill
             var fallCamera = GetComponent<PossumCamera>();
             bool cameraReady = fallCamera == null || !fallCamera.IsTransitioning;
             bool canAct = cameraReady && (motor == null || !motor.IsRagdolled) && Cursor.lockState == CursorLockMode.Locked;
-            HandleHand(Left, canAct && RkInput.LeftHandHeld);
-            HandleHand(Right, canAct && RkInput.RightHandHeld);
+            if (canAct && RkInput.GrabPressed) ToggleGrab();
 
             bool holding = IsHolding(Left) || IsHolding(Right);
             if (holding && RkInput.ThrowHeld)
@@ -267,29 +265,64 @@ namespace Roadkill
             if (Quaternion.Angle(viewRotation.Value, view.rotation) > 0.2f) viewRotation.Value = view.rotation;
         }
 
-        void HandleHand(Hand hand, bool pressed)
+        /// <summary>E: both hands take hold of what is under the crosshair, about a shoulder's width apart; E again lets go.</summary>
+        void ToggleGrab()
         {
-            if (pressed && !hand.WasPressed && !IsHolding(hand)) TryGrab(hand);
-            if (!pressed && hand.WasPressed) ReleaseRpc(hand.Index);
-            hand.WasPressed = pressed;
+            if (IsHolding(Left) || IsHolding(Right))
+            {
+                ReleaseAllRpc();
+                return;
+            }
+            if (!FindGrab(out var prop, out var networkObject, out var hit)) return;
+            float holdDistance = Mathf.Clamp(hit.distance, minHoldDistance, maxHoldDistance);
+            foreach (var hand in new[] { Left, Right })
+            {
+                Vector3 grip = PointOn(prop, hit.point + viewCamera.transform.right * (hand.SideOffset * 0.8f), hit.point);
+                hand.LocalGrip = prop.transform.InverseTransformPoint(grip);
+                GrabRpc(hand.Index, networkObject, hand.LocalGrip, holdDistance);
+            }
         }
 
         void TryGrab(Hand hand)
         {
+            if (!FindGrab(out var prop, out var networkObject, out var hit)) return;
+            hand.LocalGrip = prop.transform.InverseTransformPoint(hit.point);
+            GrabRpc(hand.Index, networkObject, hand.LocalGrip, Mathf.Clamp(hit.distance, minHoldDistance, maxHoldDistance));
+        }
+
+        /// <summary>The prop under the crosshair within reach, if nothing else is in the way.</summary>
+        bool FindGrab(out PhysicsProp prop, out NetworkObject networkObject, out RaycastHit found)
+        {
+            prop = null;
+            networkObject = null;
+            found = default;
             Ray ray = viewCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
             var hits = Physics.RaycastAll(ray, reach, ~0, QueryTriggerInteraction.Ignore);
             System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
             foreach (var hit in hits)
             {
                 if (System.Array.IndexOf(ownColliders, hit.collider) >= 0) continue;
-                var prop = hit.collider.GetComponentInParent<PhysicsProp>();
-                var networkObject = prop != null ? prop.GetComponent<NetworkObject>() : null;
-                if (networkObject == null) return;   // world geometry or another player blocks the grab
-                hand.LocalGrip = prop.transform.InverseTransformPoint(hit.point);
-                GrabRpc(hand.Index, networkObject, hand.LocalGrip,
-                    Mathf.Clamp(hit.distance, minHoldDistance, maxHoldDistance));
-                return;
+                prop = hit.collider.GetComponentInParent<PhysicsProp>();
+                networkObject = prop != null ? prop.GetComponent<NetworkObject>() : null;
+                found = hit;
+                return networkObject != null;   // world geometry or another player blocks the grab
             }
+            return false;
+        }
+
+        /// <summary>The point on the prop's surface nearest `wanted` (a hand's grip), or `fallback`.</summary>
+        static Vector3 PointOn(PhysicsProp prop, Vector3 wanted, Vector3 fallback)
+        {
+            Vector3 best = fallback;
+            float bestDistance = float.MaxValue;
+            foreach (var c in prop.GetComponentsInChildren<Collider>())
+            {
+                if (c.isTrigger || (c is MeshCollider mesh && !mesh.convex)) continue;
+                Vector3 p = c.ClosestPoint(wanted);
+                float d = (p - wanted).sqrMagnitude;
+                if (d < bestDistance) { bestDistance = d; best = p; }
+            }
+            return best;
         }
 
         /// <summary>Test hook: grab whatever is under the crosshair with hand 0 (left) or 1 (right).</summary>

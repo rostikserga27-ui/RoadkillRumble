@@ -13,9 +13,8 @@ namespace Roadkill
 
         const string Help =
             "WASD move   Shift sprint   Ctrl crouch   Space jump\n" +
-            "LMB / RMB hold: grab with left / right hand\n" +
-            "G hold, then release: throw what you hold\n" +
-            "F tap: jab   F hold: haymaker (fists take turns)\n" +
+            "LMB tap: jab   LMB hold: haymaker (fists take turns)\n" +
+            "E: grab with both hands / let go   G hold, then release: throw\n" +
             "C hold: play possum   Space while down: get up faster\n" +
             "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
             "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
@@ -28,6 +27,7 @@ namespace Roadkill
         Camera viewCamera;
         GUIStyle label;
         GUIStyle banner;
+        GUIStyle centered;
         string aimHint = "";
 
         void Start()
@@ -54,7 +54,7 @@ namespace Roadkill
             if (!Physics.Raycast(ray, out RaycastHit hit, hands.reach, ~0, QueryTriggerInteraction.Ignore)) return "";
             var prop = hit.collider.GetComponentInParent<PhysicsProp>();
             var body = prop != null ? prop.GetComponent<Rigidbody>() : null;
-            return body != null ? $"{prop.displayName}  {body.mass:0} kg" : "";
+            return body != null ? $"E: {prop.displayName}  {body.mass:0} kg" : "";
         }
 
         void OnGUI()
@@ -65,12 +65,29 @@ namespace Roadkill
                 label = new GUIStyle(GUI.skin.label) { fontSize = 16 };
                 label.normal.textColor = Color.white;
                 banner = new GUIStyle(label) { fontSize = 30, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                centered = new GUIStyle(label) { alignment = TextAnchor.UpperCenter, fontStyle = FontStyle.Bold };
             }
 
             float w = Screen.width, h = Screen.height;
             Fill(new Rect(w * 0.5f - 2f, h * 0.5f - 2f, 4f, 4f), Color.white);
+            if (fists != null && fists.TargetInRange && !motor.IsRagdolled)
+            {
+                // In reach: corner brackets round the crosshair and who it is.
+                var reach = new Color(1f, 0.45f, 0.15f);
+                const float r = 14f, len = 7f, t = 3f;
+                foreach (var (sx, sy) in new[] { (-1f, -1f), (1f, -1f), (-1f, 1f), (1f, 1f) })
+                {
+                    float x = w * 0.5f + sx * r, y = h * 0.5f + sy * r;
+                    Fill(new Rect(sx < 0f ? x : x - len, sy < 0f ? y : y - t, len, t), reach);
+                    Fill(new Rect(sx < 0f ? x : x - t, sy < 0f ? y : y - len, t, len), reach);
+                }
+                var previous = GUI.color;
+                GUI.color = reach;
+                GUI.Label(new Rect(w * 0.5f - 150f, h * 0.5f + 20f, 300f, 24f), fists.TargetName, centered);
+                GUI.color = previous;
+            }
             if (aimHint.Length > 0)
-                GUI.Label(new Rect(w * 0.5f + 14f, h * 0.5f - 10f, 300f, 24f), aimHint, label);
+                GUI.Label(new Rect(w * 0.5f + 26f, h * 0.5f - 10f, 300f, 24f), aimHint, label);
 
             Bar(new Rect(20f, h - 64f, 240f, 20f), health.Health / health.maxHealth, new Color(1f, 0.55f, 0.1f),
                 $"FUEL {Mathf.CeilToInt(health.Health)}");

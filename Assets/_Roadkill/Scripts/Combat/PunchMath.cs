@@ -73,11 +73,14 @@ namespace Roadkill
             float friendlyDamage = friendly ? c.friendlyDamageMultiplier : 1f;
             float friendlyKnock = friendly ? c.friendlyKnockbackMultiplier : 1f;
 
-            o.Damage = Mathf.Clamp(o.Momentum * c.damagePerMomentum, c.minDamage, c.maxDamage) * zoneDamage * friendlyDamage;
+            float chargeBonus = 1f + c.chargeDamageBonus * Mathf.Clamp01(charge);
+            o.Damage = Mathf.Clamp(o.Momentum * c.damagePerMomentum * chargeBonus, c.minDamage, c.maxDamage) * zoneDamage * friendlyDamage;
             o.Impulse = Mathf.Clamp(o.Momentum * c.knockbackPerMomentum, c.minKnockback, c.maxKnockback) * zoneKnock * friendlyKnock;
             o.Shove = Mathf.Min(o.Momentum * c.shovePerMomentum, c.maxShove) * zoneKnock * friendlyKnock;
 
             float knock = o.Momentum * zoneKnock * friendlyKnock;
+            // A clean haymaker to the head drops anyone, however short the arm that threw it.
+            if (zone == HitZone.Head && charge >= c.headKnockdownCharge && friendlyKnock > 0f) knock = Mathf.Max(knock, c.knockdownMomentum);
             if (knock >= c.knockdownMomentum)
             {
                 float over = Mathf.InverseLerp(c.knockdownMomentum, c.knockdownMomentum * 1.6f, knock);

@@ -18,6 +18,8 @@ namespace Roadkill
         public float sendRate = 15f;
         [Tooltip("Replay this far behind the newest pose, so late or uneven packets do not stutter.")]
         public float interpolationDelay = 0.12f;
+        [Tooltip("Taking over a body that fell a little differently here: glide it into the owner's pose over this long instead of jumping.")]
+        public float blendInSeconds = 0.25f;
         [Tooltip("No pose for this long: give the body back to physics.")]
         public float staleSeconds = 0.5f;
 
@@ -36,6 +38,9 @@ namespace Roadkill
         bool hasOffset;
         double lastReceived = double.NegativeInfinity;
         Vector3 lastVelocity;
+        Vector3[] blendFromPositions;
+        Quaternion[] blendFromRotations;
+        double blendStart = double.NegativeInfinity;
 
         ActiveRagdollController Body => player != null ? player.body : null;
 
@@ -161,9 +166,34 @@ namespace Roadkill
             float t = b.Time > a.Time ? Mathf.Clamp01((float)((renderTime - a.Time) / (b.Time - a.Time))) : 0f;
             if (b.Time > a.Time) lastVelocity = (b.Positions[hipsIndex] - a.Positions[hipsIndex]) / (float)(b.Time - a.Time);
 
-            if (!body.IsPuppet) body.SetPuppet(true, Vector3.zero);
+            if (!body.IsPuppet)
+            {
+                // Remember where this copy's bones are, to glide from there into the owner's pose.
+                if (blendFromPositions == null || blendFromPositions.Length != body.PartCount)
+                {
+                    blendFromPositions = new Vector3[body.PartCount];
+                    blendFromRotations = new Quaternion[body.PartCount];
+                }
+                for (int i = 0; i < body.PartCount; i++)
+                {
+                    blendFromPositions[i] = body.PartBody(i).position;
+                    blendFromRotations[i] = body.PartBody(i).rotation;
+                }
+                blendStart = now;
+                body.SetPuppet(true, Vector3.zero);
+            }
+            float blend = blendInSeconds > 0f ? Mathf.SmoothStep(0f, 1f, (float)((now - blendStart) / blendInSeconds)) : 1f;
             for (int i = 0; i < body.PartCount; i++)
-                body.MovePuppet(i, Vector3.Lerp(a.Positions[i], b.Positions[i], t), Quaternion.Slerp(a.Rotations[i], b.Rotations[i], t));
+            {
+                Vector3 position = Vector3.Lerp(a.Positions[i], b.Positions[i], t);
+                Quaternion rotation = Quaternion.Slerp(a.Rotations[i], b.Rotations[i], t);
+                if (blend < 1f)
+                {
+                    position = Vector3.Lerp(blendFromPositions[i], position, blend);
+                    rotation = Quaternion.Slerp(blendFromRotations[i], rotation, blend);
+                }
+                body.MovePuppet(i, position, rotation);
+            }
         }
     }
 }

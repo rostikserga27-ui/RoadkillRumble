@@ -36,8 +36,9 @@ namespace Roadkill
         public static bool Possum => Kb != null && Kb.cKey.isPressed;
         public static bool ThrowHeld => Kb != null && Kb.gKey.isPressed;
         public static bool ThrowReleased => Kb != null && Kb.gKey.wasReleasedThisFrame;
-        public static bool PunchPressed => Kb != null && Kb.fKey.wasPressedThisFrame;
-        public static bool PunchHeld => Kb != null && Kb.fKey.isPressed;
+        public static bool PunchPressed => Ms != null && Ms.leftButton.wasPressedThisFrame;
+        public static bool PunchHeld => Ms != null && Ms.leftButton.isPressed;
+        public static bool GrabPressed => Kb != null && Kb.eKey.wasPressedThisFrame;
         public static bool LeftHandHeld => Ms != null && Ms.leftButton.isPressed;
         public static bool RightHandHeld => Ms != null && Ms.rightButton.isPressed;
         public static bool ClickPressed => Ms != null && Ms.leftButton.wasPressedThisFrame;
@@ -73,8 +74,9 @@ namespace Roadkill
         public static bool Possum => Input.GetKey(KeyCode.C);
         public static bool ThrowHeld => Input.GetKey(KeyCode.G);
         public static bool ThrowReleased => Input.GetKeyUp(KeyCode.G);
-        public static bool PunchPressed => Input.GetKeyDown(KeyCode.F);
-        public static bool PunchHeld => Input.GetKey(KeyCode.F);
+        public static bool PunchPressed => Input.GetMouseButtonDown(0);
+        public static bool PunchHeld => Input.GetMouseButton(0);
+        public static bool GrabPressed => Input.GetKeyDown(KeyCode.E);
         public static bool LeftHandHeld => Input.GetMouseButton(0);
         public static bool RightHandHeld => Input.GetMouseButton(1);
         public static bool ClickPressed => Input.GetMouseButtonDown(0);

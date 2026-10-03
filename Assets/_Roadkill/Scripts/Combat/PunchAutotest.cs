@@ -11,10 +11,14 @@ namespace Roadkill
     /// connected, jab their chest, haymaker their head and jab them with friendly fire off. Measures the fist's
     /// speed, whether the hit registered, what it did to the target and that no body blew up.
     /// Victim side (-rktestpunchvictim on a client): stand still at spawn and log health and ragdoll state.
+    /// Duel (-rktestduel, on both peers): walk up to the other player, circle and trade punches for a while,
+    /// logging every sudden jump of any body or capsule this peer sees (the "teleporting ragdoll" check).
     /// </summary>
     public class PunchAutotest : MonoBehaviour
     {
         public bool victimMode;
+        public bool duelMode;
+        public float duelSeconds = 40f;
         [Tooltip("Seconds to wait for a second player before skipping the player tests.")]
         public float waitForPlayerSeconds = 25f;
 
@@ -31,6 +35,11 @@ namespace Roadkill
             }
             yield return new WaitForSeconds(2f);
             var me = manager.LocalClient.PlayerObject.GetComponent<PlayerNet>();
+            if (duelMode)
+            {
+                yield return Duel(me);
+                yield break;
+            }
             if (victimMode)
             {
                 yield return StandAndReport(me);
@@ -64,6 +73,7 @@ namespace Roadkill
             else
             {
                 yield return PunchPlayer(me, other, "jab chest", 1.3f, 0f, expectHit: true);
+                yield return PunchPlayer(me, other, "jab from 1.3 m (steps in)", 1.3f, 0f, expectHit: true, distance: 1.3f);
                 yield return PunchPlayer(me, other, "haymaker head", 1.6f, 1.2f, expectHit: true);
                 if (FriendlyFire.Instance != null) FriendlyFire.Instance.ServerSet(FriendlyFire.Switch.FriendlyFire, false);
                 yield return PunchPlayer(me, other, "jab, friendly fire off", 1.3f, 0f, expectHit: false);
@@ -104,13 +114,13 @@ namespace Roadkill
             Check(label, moved > 0.05f && lastHit, $"fist {lastFistSpeed:0.0} m/s, hit={lastHit}, {prop.name} moved {moved:0.00} m" + LastLine());
         }
 
-        IEnumerator PunchPlayer(PlayerNet me, PlayerNet other, string label, float height, float hold, bool expectHit)
+        IEnumerator PunchPlayer(PlayerNet me, PlayerNet other, string label, float height, float hold, bool expectHit, float distance = 0.75f)
         {
             // Let the victim get up and settle first.
             for (float t = 0f; t < 6f && other.IsRagdolledShared; t += 0.2f) yield return new WaitForSeconds(0.2f);
-            yield return new WaitForSeconds(0.8f);
+            yield return new WaitForSeconds(1.5f);   // and let a head knocked back come upright
             Vector3 them = other.transform.position;
-            Vector3 feet = them + new Vector3(0f, 0f, 0.75f);   // face to face, capsules (0.35 each) almost touching
+            Vector3 feet = them + new Vector3(0f, 0f, distance);   // 0.75: face to face, capsules (0.35 each) almost touching
             int before = CountLines(" punched ");
             yield return Punch(me, feet, them + Vector3.up * height, hold, other.body);
             bool registered = CountLines(" punched ") > before;
@@ -216,6 +226,119 @@ namespace Roadkill
                     lastHealth = health.Health;
                     lastDown = down;
                 }
+            }
+        }
+
+        // ---- duel ----------------------------------------------------------------------------------------
+
+        class Track
+        {
+            public PlayerNet Player;
+            public Vector3 Hips, Root;
+            public bool Has, Puppet;
+            public int Snaps, HipsJumps, RelativeJumps, RootJumps, PuppetSwitches;
+            public float MaxHipsStep, MaxRelative, MaxRootStep;
+        }
+
+        IEnumerator Duel(PlayerNet me)
+        {
+            PlayerNet other = null;
+            for (float t = 0f; t < 60f && other == null; t += 0.5f)
+            {
+                foreach (var p in FindObjectsByType<PlayerNet>(FindObjectsInactive.Exclude))
+                    if (p.IsSpawned && p != me) other = p;
+                if (other == null) yield return new WaitForSeconds(0.5f);
+            }
+            if (other == null)
+            {
+                Log("duel: nobody to fight");
+                yield break;
+            }
+            Log($"duel: {PlayerNet.NameOf(me.OwnerClientId)} vs {PlayerNet.NameOf(other.OwnerClientId)}");
+            var fists = me.GetComponent<PlayerFists>();
+            var tracks = new List<Track>();
+            foreach (var p in new[] { me, other })
+                if (p.body != null) tracks.Add(new Track { Player = p, Snaps = p.body.SnapCount });
+            StartCoroutine(Watch(tracks));
+
+            float nextPunch = 0f, end = Time.time + duelSeconds, nextReport = Time.time + 10f;
+            int punches = 0;
+            while (Time.time < end)
+            {
+                if (other == null || !other.IsSpawned) break;
+                if (!me.Motor.IsRagdolled)
+                {
+                    Vector3 to = Vector3.ProjectOnPlane(other.transform.position - me.transform.position, Vector3.up);
+                    float d = to.magnitude;
+                    me.Motor.DebugLook(other.transform.position + Vector3.up * 1.35f);
+                    Vector2 move = d > 1.4f ? new Vector2(0f, 1f) : d < 0.8f ? new Vector2(0f, -0.6f) : new Vector2(Mathf.Sin(Time.time * 1.3f) * 0.8f, 0.2f);
+                    me.Motor.DebugMove(move, 0.25f);
+                    if (fists.TargetInRange && Time.time > nextPunch)
+                    {
+                        fists.DebugPunch(Random.value < 0.35f ? Random.Range(0.4f, 1f) : 0f);
+                        nextPunch = Time.time + Random.Range(0.5f, 1.1f);
+                        punches++;
+                    }
+                }
+                if (Time.time > nextReport)
+                {
+                    nextReport += 10f;
+                    Report(tracks, $"after {duelSeconds - (end - Time.time):0}s, {punches} punches thrown");
+                }
+                yield return new WaitForSeconds(0.1f);
+            }
+            Report(tracks, $"end, {punches} punches thrown");
+            Log("duel done");
+        }
+
+        /// <summary>Every physics step: how far each body's hips and each capsule moved, flagging jumps.</summary>
+        IEnumerator Watch(List<Track> tracks)
+        {
+            int logged = 0;
+            while (true)
+            {
+                yield return new WaitForFixedUpdate();
+                foreach (var t in tracks)
+                {
+                    if (t.Player == null || t.Player.body == null) continue;
+                    var body = t.Player.body;
+                    Vector3 hips = body.Hips.position, root = t.Player.transform.position;
+                    bool puppet = body.IsPuppet;
+                    if (t.Has)
+                    {
+                        float hipsStep = (hips - t.Hips).magnitude;
+                        float relative = ((hips - t.Hips) - (root - t.Root)).magnitude;
+                        float rootStep = (root - t.Root).magnitude;
+                        t.MaxHipsStep = Mathf.Max(t.MaxHipsStep, hipsStep);
+                        t.MaxRelative = Mathf.Max(t.MaxRelative, relative);
+                        t.MaxRootStep = Mathf.Max(t.MaxRootStep, rootStep);
+                        bool jump = false;
+                        if (hipsStep > 0.25f) { t.HipsJumps++; jump = true; }
+                        if (relative > 0.2f) { t.RelativeJumps++; jump = true; }
+                        if (rootStep > 0.3f) { t.RootJumps++; jump = true; }
+                        if (puppet != t.Puppet) t.PuppetSwitches++;
+                        if (jump && logged++ < 25)
+                            Log($"  jump {Who(t)}: hips {hipsStep:0.00} m, vs capsule {relative:0.00} m, capsule {rootStep:0.00} m in one step; " +
+                                $"puppet {t.Puppet}->{puppet}, down={t.Player.IsRagdolledShared}, snaps {body.SnapCount - t.Snaps}");
+                    }
+                    t.Hips = hips;
+                    t.Root = root;
+                    t.Puppet = puppet;
+                    t.Has = true;
+                }
+            }
+        }
+
+        static string Who(Track t) => $"{(t.Player.IsOwner ? "own" : "remote")} {PlayerNet.NameOf(t.Player.OwnerClientId)}";
+
+        void Report(List<Track> tracks, string when)
+        {
+            foreach (var t in tracks)
+            {
+                if (t.Player == null || t.Player.body == null) continue;
+                Log($"duel {when}: {Who(t)} hips max {t.MaxHipsStep:0.00} m/step, jumps {t.HipsJumps}, vs capsule max {t.MaxRelative:0.00} " +
+                    $"({t.RelativeJumps} jumps), capsule max {t.MaxRootStep:0.00} ({t.RootJumps} jumps), puppet switches {t.PuppetSwitches}, " +
+                    $"snaps {t.Player.body.SnapCount - t.Snaps}, health {t.Player.Health.Health:0}");
             }
         }
 

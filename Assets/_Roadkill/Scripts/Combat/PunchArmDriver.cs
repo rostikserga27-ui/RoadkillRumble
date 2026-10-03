@@ -45,7 +45,8 @@ namespace Roadkill
             public float StrikeSeconds;
             public Vector3 Aim = Vector3.forward;   // shoulder to aim point, at the start of the strike
             public Vector3 AimPoint;
-            public bool Thrown;             // the arm has been thrown (a haymaker steps in first)
+            public bool Thrown;             // the arm has been thrown (a haymaker, or a punch at a target out of reach, steps in first)
+            public float ThrowTime;
             public int Sequence;
             public bool Fixed;              // the charge is the owner's (not guessed from time)
             public Rigidbody Hand, Forearm, Upper;
@@ -177,8 +178,9 @@ namespace Roadkill
 
             Body.SetArmDriven(hand, true);
             SetContinuous(arm, true);
-            // A charged punch steps in and turns the hips before the arm goes (Drive throws it after StepIn).
-            if (config.StepIn(arm.Charge) <= 0f) Throw(arm);
+            // A charged punch steps in and turns the hips before the arm goes, and any punch waits (briefly) for
+            // the body to step into reach of its target (Drive throws it then).
+            if (config.StepIn(arm.Charge) <= 0f && InReach(arm)) Throw(arm);
         }
 
         /// <summary>
@@ -186,9 +188,12 @@ namespace Roadkill
         /// out along the arm), from where the fist is now: a fist still low from hanging goes up to it. Momentum
         /// handed to the arm is taken partly back out of the chest, and the hips and chest snap round.
         /// </summary>
+        bool InReach(Arm arm) => Vector3.Distance(arm.Upper.position, arm.AimPoint) <= Body.ArmLength(arm.Index) + config.throwReach;
+
         void Throw(Arm arm)
         {
             arm.Thrown = true;
+            arm.ThrowTime = arm.Time;
             float speed = config.StrikeSpeed(arm.Charge);
             Vector3 toPoint = arm.AimPoint - arm.Hand.position;
             Vector3 direction = toPoint.sqrMagnitude > 0.01f ? toPoint.normalized : arm.Aim;
@@ -297,7 +302,8 @@ namespace Roadkill
                         Pull(arm, cocked, config.windUpSpring, config.windUpDamping);
                         wantTwist -= arm.Side * config.strikeTwist * 0.3f;
                         wantLean += config.strikeLean * 0.5f;
-                        if (arm.Time >= config.StepIn(arm.Charge)) Throw(arm);
+                        float stepIn = config.StepIn(arm.Charge);
+                        if (arm.Time >= stepIn && (InReach(arm) || arm.Time >= stepIn + config.maxApproachSeconds)) Throw(arm);
                         break;
                     }
                     // Hold the fist at strike speed, homing on the aim point (a PD on velocity, not position, so it
@@ -312,7 +318,7 @@ namespace Roadkill
                     ClampFistSpeed(arm);
                     wantTwist -= arm.Side * config.strikeTwist * (0.6f + 0.4f * arm.Charge);
                     wantLean += config.strikeLean * (0.5f + 0.5f * arm.Charge);
-                    if (arm.Time >= arm.StrikeSeconds) EnterRecovery(arm);
+                    if (arm.Time - arm.ThrowTime >= arm.StrikeSeconds) EnterRecovery(arm);
                     break;
                 }
                 case Phase.Recovery:

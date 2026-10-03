@@ -307,6 +307,12 @@ namespace Roadkill
         void TrackRoot(float dt)
         {
             Vector3 position = root.position;
+            // The capsule jumped (respawn, gathered, a network teleport): jump with it rather than be dragged.
+            if ((position - lastRootPosition).sqrMagnitude > TeleportStep * TeleportStep)
+            {
+                SnapToRoot();
+                position = root.position;
+            }
             bool dynamicRoot = rootBody != null && !rootBody.isKinematic;
             Vector3 velocity = dynamicRoot ? rootBody.linearVelocity : (position - lastRootPosition) / dt;
             lastRootPosition = position;
@@ -817,8 +823,14 @@ namespace Roadkill
         [ContextMenu("Reset Pose")]
         public void ResetPose() => SnapToRoot();
 
+        const float TeleportStep = 1f;   // metres in one physics step: nothing walks or flies that fast
+
+        /// <summary>How many times the body was teleported back onto the capsule (tests).</summary>
+        public int SnapCount { get; private set; }
+
         void SnapToRoot()
         {
+            SnapCount++;
             if (root == null) return;
             // A teleport: forget the velocity tracked before it, take the capsule's own.
             rootVelocity = rootBody != null && !rootBody.isKinematic ? rootBody.linearVelocity : Vector3.zero;

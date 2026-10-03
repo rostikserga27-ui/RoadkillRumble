@@ -94,6 +94,7 @@ namespace Roadkill
                 var body = GetComponent<Rigidbody>();
                 body.position = spawn;
                 body.rotation = Quaternion.identity;
+                PlayerMotor.NetworkTeleport(transform, spawn, Quaternion.identity);
             }
         }
 

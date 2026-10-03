@@ -1,3 +1,4 @@
+using Unity.Netcode.Components;
 using UnityEngine;
 
 namespace Roadkill
@@ -202,7 +203,7 @@ namespace Roadkill
             IsGrounded = CheckGround();
             rb.MoveRotation(Quaternion.Euler(0f, yaw, 0f));
 
-            Vector2 input = RkInput.Move;
+            Vector2 input = Time.time < debugMoveUntil ? debugMove : RkInput.Move;
             bool moving = input.sqrMagnitude > 0.01f;
             bool canSprint = hands == null || hands.CanSprint;
             IsSprinting = !IsCrouching && RkInput.Sprint && canSprint && moving && Stamina > 0f;
@@ -224,6 +225,17 @@ namespace Roadkill
             Vector3 wish = Quaternion.Euler(0f, yaw, 0f) * new Vector3(input.x, 0f, input.y) * speed;
             Vector3 v = rb.linearVelocity;
 
+            // Dashing (a punch closing in): straight at the point, braking so it stops at the set distance.
+            bool dashing = Time.time < dashUntil && IsGrounded;
+            float dashBrake = groundAcceleration * 2f * Mathf.Max(0.05f, grip);
+            if (dashing)
+            {
+                Vector3 to = Vector3.ProjectOnPlane(dashTarget - transform.position, Vector3.up);
+                float left = to.magnitude - dashStop;
+                if (left <= 0.02f) { dashUntil = -1f; dashing = false; wish = Vector3.zero; }
+                else wish = to / to.magnitude * Mathf.Min(dashSpeed, Mathf.Sqrt(2f * dashBrake * left));
+            }
+
             // Hitting grippy ground much faster than legs can run (flung off the merry-go-round, off the
             // ice slide): trip and tumble instead of stopping dead.
             Vector3 slip = new Vector3(v.x, 0f, v.z) - carry;
@@ -234,8 +246,9 @@ namespace Roadkill
             }
             // In the air you steer, but extra momentum (a launch, a fling off the merry-go-round) is kept.
             bool flying = launched || new Vector2(v.x, v.z).magnitude > speed + 1f;
-            float accel = IsGrounded ? groundAcceleration * Mathf.Max(0.05f, grip) * (stumbleTimer > 0f ? 0.12f : 1f)
-                                     : airAcceleration * (flying ? 0.25f : 1f);
+            float accel = dashing ? dashBrake
+                : IsGrounded ? groundAcceleration * Mathf.Max(0.05f, grip) * (stumbleTimer > 0f ? 0.12f : 1f)
+                : airAcceleration * (flying ? 0.25f : 1f);
             Vector3 horizontal = carry + Vector3.MoveTowards(new Vector3(v.x, 0f, v.z) - carry, wish, accel * dt);
 
             float vertical = v.y;
@@ -526,6 +539,7 @@ namespace Roadkill
             transform.SetPositionAndRotation(position, rotation);
             rb.position = position;
             rb.rotation = rotation;
+            NetworkTeleport(transform, position, rotation);
             LeaveBody();
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
@@ -541,7 +555,52 @@ namespace Roadkill
             if (body != null && body.enabled) body.ResetPose();
         }
 
+        /// <summary>
+        /// A jump, not a move: other players' copies appear at the new spot instead of being interpolated
+        /// across the map (which dragged their ragdoll along and snapped it back).
+        /// </summary>
+        public static void NetworkTeleport(Transform player, Vector3 position, Quaternion rotation)
+        {
+            var networkTransform = player.GetComponent<NetworkTransform>();
+            if (networkTransform != null && networkTransform.IsSpawned && networkTransform.CanCommitToTransform)
+                networkTransform.Teleport(position, rotation, player.localScale);
+        }
+
         /// <summary>Test hook: put the player somewhere and aim the view at a point.</summary>
+        Vector3 dashTarget;
+        float dashStop, dashSpeed, dashUntil = -1f;
+
+        /// <summary>
+        /// A short committed step (a punch closing in on its target): straight at `point` at `speed`, braking to
+        /// stop `stop` metres short of it (horizontally), for at most `seconds`. Walls and bodies still stop it.
+        /// </summary>
+        public void Dash(Vector3 point, float stop, float speed, float seconds)
+        {
+            if (state != State.Normal) return;
+            dashTarget = point;
+            dashStop = stop;
+            dashSpeed = speed;
+            dashUntil = Time.time + seconds;
+        }
+
+        Vector2 debugMove;
+        float debugMoveUntil = -1f;
+
+        /// <summary>Test hook: walk as if WASD gave `move` (x right, y forward) for `seconds`.</summary>
+        public void DebugMove(Vector2 move, float seconds)
+        {
+            debugMove = Vector2.ClampMagnitude(move, 1f);
+            debugMoveUntil = Time.time + seconds;
+        }
+
+        /// <summary>Test hook: turn the view toward a point, as the mouse would (no teleport).</summary>
+        public void DebugLook(Vector3 point)
+        {
+            Vector3 direction = point - cameraPivot.position;
+            yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            pitch = Mathf.Clamp(-Mathf.Atan2(direction.y, new Vector2(direction.x, direction.z).magnitude) * Mathf.Rad2Deg, -85f, 85f);
+        }
+
         public void DebugPlace(Vector3 position, Vector3 lookAt)
         {
             if (rb == null) return;

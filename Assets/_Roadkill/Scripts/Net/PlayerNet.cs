@@ -43,6 +43,12 @@ namespace Roadkill
         // Written by the owner: is this player down right now? Drives everyone else's ragdoll.
         NetworkVariable<bool> ragdolled = new NetworkVariable<bool>(false,
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        // Written by the owner: crouching, so everyone else's copy of the body crouches too.
+        NetworkVariable<bool> crouching = new NetworkVariable<bool>(false,
+            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
+        /// <summary>Is this player down (as the owner reports it)? Valid on every peer.</summary>
+        public bool IsRagdolledShared => ragdolled.Value;
 
         float lastKnockdownTime = -99f;
         int lastThrowCount;
@@ -98,12 +104,14 @@ namespace Roadkill
             if (IsOwner)
             {
                 if (ragdolled.Value != Motor.IsRagdolled) ragdolled.Value = Motor.IsRagdolled;
+                if (crouching.Value != Motor.IsCrouching) crouching.Value = Motor.IsCrouching;
                 return;
             }
 
             if (body != null)
             {
                 body.FollowRootRagdoll(ragdolled.Value);
+                body.SetCrouch(crouching.Value);
                 body.SetLook(Hands.ViewRotation);
             }
         }

@@ -17,6 +17,8 @@ namespace Roadkill
         public bool logMode;
         [Tooltip("Walk in a circle at walking speed, for checking the walk animation from outside.")]
         public bool walkMode;
+        [Tooltip("Get launched limp, then crouch, logging the body's pose to compare with what the host sees.")]
+        public bool flyMode;
 
         IEnumerator Start()
         {
@@ -37,6 +39,11 @@ namespace Roadkill
             if (walkMode)
             {
                 yield return WalkInCircles(player);
+                yield break;
+            }
+            if (flyMode)
+            {
+                yield return FlyAndCrouch(player);
                 yield break;
             }
             var crate = FindCrate();
@@ -99,6 +106,41 @@ namespace Roadkill
             }
             Log($"done, hp={health.Health:0}");
         }
+
+        /// <summary>Launch limp, lie still, get up and crouch; log the bones each time (the host logs its copy to compare).</summary>
+        IEnumerator FlyAndCrouch(NetworkObject player)
+        {
+            var motor = player.GetComponent<PlayerMotor>();
+            var body = player.GetComponent<PlayerNet>().body;
+            Vector3 spot = new Vector3(12f, 0.05f, -18f);
+            motor.DebugPlace(spot, spot + new Vector3(0f, 1.6f, -5f));
+            yield return new WaitForSeconds(1f);
+            Log("launching");
+            motor.EnterRagdoll(7f, new Vector3(0f, 8f, -5f));
+            yield return new WaitForSeconds(4.5f);
+            LogPose("resting", body);
+            while (motor.IsRagdolled) yield return null;
+            yield return new WaitForSeconds(1.5f);
+            motor.debugCrouch = true;
+            yield return new WaitForSeconds(2f);
+            LogPose("crouching", body);
+            yield return new WaitForSeconds(2f);
+            motor.debugCrouch = false;
+            Log("done flying");
+        }
+
+        public static string PoseText(ActiveRagdollController body)
+        {
+            var text = new System.Text.StringBuilder($"hips {body.Hips.position:F2}");
+            for (int i = 0; i < body.PartCount; i++)
+            {
+                var part = body.PartBody(i);
+                text.Append($" | {part.name} up {part.rotation * Vector3.up:F2} fwd {part.rotation * Vector3.forward:F2}");
+            }
+            return text.ToString();
+        }
+
+        static void LogPose(string label, ActiveRagdollController body) => Log($"POSE {label}: {PoseText(body)}");
 
         static Transform FindCrate()
         {

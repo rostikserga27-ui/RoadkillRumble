@@ -56,6 +56,8 @@ namespace Roadkill
         public bool IsRagdolled => state != State.Normal;
         public bool IsPossum => state == State.Possum;
         public int CameraResetVersion { get; private set; }
+        [Tooltip("Test hook: crouch as if Ctrl were held (NetTest).")]
+        public bool debugCrouch;
         /// <summary>Set by debug panels while the mouse is over them, so clicking a button does not recapture the cursor.</summary>
         public static bool UiHasCursor;
 
@@ -85,6 +87,8 @@ namespace Roadkill
         float bounceSpeed;        // > 0: a trampoline landing to bounce off on the next step
         bool launched;            // thrown by a pad or trampoline: little air control until landing
         float launchGrace;
+        float bodyFallSpeed;      // down: the hips' downward speed going into this physics step
+        float bodyLandCooldown;
 
         void Start()
         {
@@ -186,6 +190,8 @@ namespace Roadkill
         void FollowBody()
         {
             if (!bodyLeads) return;
+            bodyFallSpeed = Mathf.Max(0f, -body.Hips.linearVelocity.y);
+            bodyLandCooldown -= Time.fixedDeltaTime;
             rb.MovePosition(body.Hips.position - Vector3.up * body.hipHeight);
             rb.MoveRotation(Quaternion.Euler(0f, yaw, 0f));
         }
@@ -270,7 +276,7 @@ namespace Roadkill
 
         void UpdateCrouch()
         {
-            bool wantCrouch = state == State.Normal && RkInput.Crouch;
+            bool wantCrouch = state == State.Normal && (RkInput.Crouch || debugCrouch);
             if (!wantCrouch && IsCrouching && state == State.Normal && !HasHeadroom()) wantCrouch = true;
             IsCrouching = wantCrouch;
 
@@ -334,6 +340,32 @@ namespace Roadkill
                 if (dropHeight > fallDamageStartHeight && health != null)
                     health.Damage((dropHeight - fallDamageStartHeight) * fallDamagePerMetre, "fall");
             }
+        }
+
+        /// <summary>
+        /// A bone of the leading body hit something (ActiveRagdollController). While down the capsule is a
+        /// collision-free ghost, so a fall that ends in ragdoll or possum is judged here by the same rule:
+        /// landing on the ground from fallRagdollHeight keeps you down, past fallDamageStartHeight it hurts.
+        /// </summary>
+        public void OnBodyImpact(Collision collision)
+        {
+            if (!bodyLeads || bodyLandCooldown > 0f || collision.contactCount == 0) return;
+            Vector3 normal = collision.GetContact(0).normal;
+            Rigidbody other = collision.rigidbody;
+            if (normal.y < 0.5f || (other != null && !other.isKinematic)) return;
+            bodyLandCooldown = 0.4f;   // one landing, however many bones touch down
+
+            var surface = PlaygroundSurface.Of(collision.collider);
+            if (surface != null && (surface.softLanding || surface.bounceSpeed > 0f)) return;
+            float gravity = -Physics.gravity.y * body.gravityMultiplier;   // the body falls under its own gravity
+            float dropHeight = bodyFallSpeed * bodyFallSpeed / (2f * gravity);
+            if (dropHeight < fallRagdollHeight * PlaygroundRules.FallHeightScale) return;
+
+            // A hard landing is not a nap: playing possum mid-fall does not let you pop back up unhurt.
+            if (state == State.Possum) state = State.Ragdoll;
+            ragdollTimer = Mathf.Max(ragdollTimer, fallDowntime);
+            if (dropHeight > fallDamageStartHeight && health != null)
+                health.Damage((dropHeight - fallDamageStartHeight) * fallDamagePerMetre, "fall");
         }
 
         /// <summary>Knock the player down. Infinity seconds = until something calls stand-up (possum).</summary>

@@ -61,6 +61,7 @@ namespace Roadkill
                 if (args[i] == "-rktest") gameObject.AddComponent<NetTest>();
                 if (args[i] == "-rktestlog") gameObject.AddComponent<NetTest>().logMode = true;
                 if (args[i] == "-rktestwalk") gameObject.AddComponent<NetTest>().walkMode = true;
+                if (args[i] == "-rktestfly") gameObject.AddComponent<NetTest>().flyMode = true;
             }
         }
 

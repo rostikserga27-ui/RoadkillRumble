@@ -91,6 +91,8 @@ namespace Roadkill
         public float armHang = 32f;           // arms drop from the A-pose toward the body
         public float elbowBend = 22f;
         public float lean = 4f;               // degrees forward at full stride, plus acceleration lean
+        public float crouchLean = 18f;        // degrees forward while crouching
+        public float crouchThigh = 50f;       // thighs forward, knees and ankles fold to match
         public float flail = 40f;             // limb thrash while airborne
         public float sink = 0.03f;            // hips held a little low so the legs carry weight: springy knees
 
@@ -170,6 +172,9 @@ namespace Roadkill
         float speed, phase, air;
         Quaternion look;
         bool hasLook;
+        bool remoteCrouch;
+        float crouch;          // 0..1, eased
+        bool puppet;           // remote copy replaying the owner's limp pose (RagdollPoseSync)
 
         void Awake()
         {
@@ -258,6 +263,15 @@ namespace Roadkill
             }
 
             knockoutTimer = Mathf.Max(0f, knockoutTimer - dt);
+            if (puppet)
+            {
+                // Bones are placed by RagdollPoseSync; stay limp so getting up blends in as usual.
+                weight = 0f;
+                lastRootPosition = root.position;
+                return;
+            }
+            bool crouching = motor != null && motor.enabled ? motor.IsCrouching : remoteCrouch;
+            crouch = Mathf.MoveTowards(crouch, crouching && !IsLimp ? 1f : 0f, dt * 5f);
             staggerTimer = Mathf.Max(0f, staggerTimer - dt);
             throwSwingTimer = Mathf.Max(0f, throwSwingTimer - dt);
             for (int i = 0; i < 2; i++)
@@ -349,7 +363,7 @@ namespace Roadkill
 
             float bob = IsGrounded ? Mathf.Abs(Mathf.Sin(phase)) * 0.035f * walk : 0f;
             float height = hipHeight - (IsGrounded ? sink * (1f - walk) : 0f) + bob;
-            if (motor != null && motor.enabled && motor.IsCrouching) height *= 0.72f;
+            height *= Mathf.Lerp(1f, 0.72f, crouch);
             Vector3 sway = new Vector3(Mathf.PerlinNoise(t * 0.6f, 3.1f) - 0.5f, 0f, Mathf.PerlinNoise(7.7f, t * 0.6f) - 0.5f) * (0.06f * wobbleAmount);
             Vector3 target = root.position + Vector3.up * height + root.rotation * sway;
 
@@ -365,7 +379,7 @@ namespace Roadkill
             // forward as it lets go.
             Quaternion facing = Facing();
             Vector3 accel = Quaternion.Inverse(facing) * rootAcceleration;
-            float leanForward = lean * walk * move.z + Mathf.Clamp(accel.z, -6f, 10f)
+            float leanForward = lean * walk * move.z + Mathf.Clamp(accel.z, -6f, 10f) + crouchLean * crouch
                                 - throwWindUp * throwCharge + (throwSwingTimer > 0f ? throwLunge : 0f);
             leanForward += CarryLean(facing * Vector3.forward);
             float leanSide = (lean * walk * move.x + Mathf.Clamp(accel.x, -6f, 6f)) * sideLean;
@@ -445,13 +459,14 @@ namespace Roadkill
                         break;
                     case Role.UpperLeg:
                         stride = legSign * s * legSwing * walk * Mathf.Lerp(1f, sideStepScale, sideways);
-                        aboutRight += thrash;
+                        aboutRight += thrash - crouchThigh * crouch;                          // crouch: thighs forward
                         break;
                     case Role.LowerLeg:
-                        aboutRight += swing * kneeBend * walk + 6f + air * (25f + Mathf.Abs(thrash) * 0.6f);
+                        aboutRight += swing * kneeBend * walk + 6f + air * (25f + Mathf.Abs(thrash) * 0.6f)
+                                      + crouchThigh * 1.8f * crouch;                           // knees fold
                         break;
                     case Role.Foot:
-                        aboutRight -= swing * 12f * walk;   // toes drop on the swing: shuffle
+                        aboutRight -= swing * 12f * walk + crouchThigh * 0.8f * crouch;       // feet stay flat
                         break;
                     case Role.UpperArm:
                         stride = -legSign * s * armSwing * walk * Mathf.Lerp(1f, 0.3f, sideways);   // arms barely swing on a side-step
@@ -578,10 +593,12 @@ namespace Roadkill
         /// <summary>Hit reports from RagdollBodyPart: a hard knock flops the body, a lighter one makes it stagger.</summary>
         public void OnPartCollision(RagdollBodyPart part, Collision collision)
         {
-            if (!simulated) return;
+            if (!simulated || puppet) return;
             var other = collision.rigidbody;
             if (other != null && ownBodies.Contains(other)) return;
             if (collision.collider == rootCollider) return;
+            // Down and leading, the body is what lands: the player's fall rules are checked from here.
+            if (BodyLeads && motor != null && motor.enabled) motor.OnBodyImpact(collision);
             // Speed along the contact normal, so feet sliding over the ground while walking don't count.
             Vector3 normal = collision.contactCount > 0 ? collision.GetContact(0).normal : Vector3.up;
             float impact = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, normal));
@@ -678,6 +695,42 @@ namespace Roadkill
             Vector3 fling = Facing() * new Vector3(0f, 0.25f, 1f) * 4f;
             foreach (var hand in hands)
                 if (hand != null) hand.body.AddForce(fling, ForceMode.VelocityChange);
+        }
+
+        /// <summary>Remote copies: crouch like the owner does.</summary>
+        public void SetCrouch(bool crouching) => remoteCrouch = crouching;
+
+        public int PartCount => parts.Length;
+        public Rigidbody PartBody(int index) => parts[index].body;
+        public bool IsPuppet => puppet;
+
+        /// <summary>
+        /// Remote copies while the owner is down: on, every bone turns kinematic and is placed from the
+        /// owner's streamed pose (RagdollPoseSync); off, the bones are physical again, moving at `velocity`,
+        /// and the body blends back to active balance from limp.
+        /// </summary>
+        public void SetPuppet(bool on, Vector3 velocity)
+        {
+            if (on == puppet || !simulated) return;
+            puppet = on;
+            foreach (var p in parts)
+            {
+                p.body.isKinematic = on;
+                if (on) continue;
+                p.body.linearVelocity = velocity;
+                p.body.angularVelocity = Vector3.zero;
+            }
+            weight = 0f;
+            rootVelocity = velocity;
+            lastRootPosition = root.position;
+        }
+
+        /// <summary>Puppet mode: move one bone to where the owner's copy has it.</summary>
+        public void MovePuppet(int index, Vector3 position, Quaternion rotation)
+        {
+            var body = parts[index].body;
+            body.MovePosition(position);
+            body.MoveRotation(rotation);
         }
 
         /// <summary>Where the head should look (world rotation of the view).</summary>

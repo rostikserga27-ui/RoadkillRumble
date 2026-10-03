@@ -144,6 +144,7 @@ GameObject:
   - component: {fileID: 7548177099661645517}
   - component: {fileID: 1975696854753093564}
   - component: {fileID: 4025892500302269358}
+  - component: {fileID: 3109164005114730878}
   m_Layer: 0
   m_Name: NetPlayer
   m_TagString: Untagged
@@ -434,6 +435,22 @@ MonoBehaviour:
   tintRenderers: []
   palette: {fileID: 5947354894459813451}
   body: {fileID: 4492035118224260260}
+--- !u!114 &3109164005114730878
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8798903207606541268}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ad2fca31bdf63c1f2bb00d9140aef88f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.RagdollPoseSync
+  ShowTopMostFoldoutHeaderGroup: 1
+  sendRate: 15
+  interpolationDelay: 0.12
+  staleSeconds: 0.5
 --- !u!1001 &7531659698772883888
 PrefabInstance:
   m_ObjectHideFlags: 0

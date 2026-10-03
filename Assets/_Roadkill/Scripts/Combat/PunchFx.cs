@@ -6,13 +6,13 @@ namespace Roadkill
     /// <summary>
     /// Punch feedback, all placeholders until real art and sound arrive: a burst of cartoon sparks,
     /// popups ("BONK!", "OOPS!") drawn over the world, and sounds (PunchConfig clips if assigned,
-    /// otherwise little generated ones: a whoosh, a thud, a boing and a harmless boop).
+    /// otherwise little generated ones: a thud, a boing and a harmless boop; no swing sound without a clip).
     /// Purely local: callers decide on which peers to play them.
     /// </summary>
     public class PunchFx : MonoBehaviour
     {
         static PunchFx instance;
-        static AudioClip whoosh, thud, boing, boop;
+        static AudioClip thud, boing, boop;
 
         static readonly string[] HitWords = { "BONK!", "POW!", "WHAM!", "SMACK!", "THWACK!" };
         static readonly string[] FriendlyWords = { "OOPS!", "SORRY!", "MY BAD!", "FRIEND!?", "WHOOPS!" };
@@ -128,11 +128,12 @@ namespace Roadkill
 
         // ---- sound -------------------------------------------------------------------------------------
 
-        /// <summary>Hook: a swing through the air (pitch rises with charge).</summary>
+        /// <summary>Hook: a swing through the air. Silent unless PunchConfig has a whoosh clip (the generated one was not nice).</summary>
         public static void PlayWhoosh(Vector3 position, float charge)
         {
             var c = PunchConfig.Current;
-            Play(c.whooshClip != null ? c.whooshClip : Clip(ref whoosh, MakeWhoosh), position, c.volume * Mathf.Lerp(0.35f, 0.7f, charge), Mathf.Lerp(1.2f, 0.85f, charge));
+            if (c.whooshClip == null) return;
+            Play(c.whooshClip, position, c.volume * Mathf.Lerp(0.15f, 0.35f, charge), Mathf.Lerp(1.15f, 0.9f, charge));
         }
 
         /// <summary>Hook: a meaty impact, louder and lower the harder the hit; very hard hits add a comedic sound.</summary>
@@ -185,27 +186,20 @@ namespace Roadkill
             return clip;
         }
 
-        static AudioClip MakeWhoosh()
-        {
-            var random = new System.Random(7);
-            float low = 0f;
-            return Make("PunchWhoosh", 0.22f, t =>
-            {
-                // Noise through a sweeping low-pass, swelling and fading.
-                float cutoff = Mathf.Lerp(0.05f, 0.35f, Mathf.Sin(t / 0.22f * Mathf.PI));
-                low += ((float)random.NextDouble() * 2f - 1f - low) * cutoff;
-                return low * Mathf.Sin(t / 0.22f * Mathf.PI) * 1.6f;
-            });
-        }
-
         static AudioClip MakeThud()
         {
+            // A meaty punch: a low thump that drops in pitch, a short knuckle knock on top and a 4 ms click
+            // for the contact, lightly saturated. No long noise tail.
             var random = new System.Random(11);
-            return Make("PunchThud", 0.16f, t =>
+            float phase = 0f;
+            return Make("PunchThud", 0.2f, t =>
             {
-                float body = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(140f, 55f, t / 0.16f) * t) * Mathf.Exp(-t * 28f);
-                float slap = ((float)random.NextDouble() * 2f - 1f) * Mathf.Exp(-t * 90f) * 0.6f;
-                return (body + slap) * 0.9f;
+                float pitch = 55f + 110f * Mathf.Exp(-t * 30f);
+                phase += 2f * Mathf.PI * pitch / Rate;
+                float thump = Mathf.Sin(phase) * Mathf.Exp(-t * 22f);
+                float knock = Mathf.Sin(2f * Mathf.PI * 320f * t) * Mathf.Exp(-t * 90f) * 0.5f;
+                float click = t < 0.004f ? ((float)random.NextDouble() * 2f - 1f) * (1f - t / 0.004f) * 0.5f : 0f;
+                return (float)System.Math.Tanh((thump + knock + click) * 1.8f) * 0.8f;
             });
         }
 

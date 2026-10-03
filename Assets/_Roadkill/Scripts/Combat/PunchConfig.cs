@@ -23,17 +23,9 @@ namespace Roadkill
         [Tooltip("The fist is live (counts hits) for this long: jab .. full charge.")]
         public float strikeSecondsJab = 0.14f;
         public float strikeSecondsHaymaker = 0.2f;
-        public float recoverySeconds = 0.25f;
+        public float recoverySeconds = 0.2f;
         [Tooltip("Shortest gap between two punches (the other fist may already wind up).")]
         public float cooldownSeconds = 0.22f;
-
-        [Header("Stamina")]
-        public float maxStamina = 100f;
-        public float jabCost = 12f;
-        public float haymakerCost = 32f;
-        public float staminaRegenPerSecond = 22f;
-        [Tooltip("Regeneration waits this long after a punch.")]
-        public float staminaRegenDelay = 0.6f;
 
         [Header("Arm drive (physics)")]
         [Tooltip("Fist speed the strike kicks the hand to along the aim (m/s): jab .. full charge.")]
@@ -63,19 +55,31 @@ namespace Roadkill
         public float throwReach = 0.35f;
         public float maxApproachSeconds = 0.25f;
         [Tooltip("How far the fist cocks back past the guard at full charge (metres).")]
-        public float windUpPullBack = 0.12f;
+        public float windUpPullBack = 0.1f;
+        [Tooltip("Guard (where the fist rests while winding up and after a punch): this far in front of the shoulder, out to its side and up (metres). In front and beside, never by the chin.")]
+        public float guardForward = 0.24f;
+        public float guardSide = 0.06f;
+        public float guardUp = -0.12f;
+        [Tooltip("Chamber: where every punch is cocked, in front of the shoulder (metres forward, out to the side, down).")]
+        public float chamberForward = 0.12f;
+        public float chamberSide = 0.06f;
+        public float chamberDown = 0.1f;
+        [Tooltip("The fist is kept at least this far from its own head's centre (metres): no winding up through the face.")]
+        public float headClearance = 0.25f;
+        [Tooltip("How hard a fist that got inside that clearance is pushed back out (1/s^2).")]
+        public float headClearanceSpring = 2000f;
         [Tooltip("Share of the strike's kick pushed back into the chest (recoil), so momentum stays sane.")]
-        [Range(0f, 1f)] public float strikeRecoil = 0.2f;
+        [Range(0f, 1f)] public float strikeRecoil = 0f;
         [Tooltip("Torso twist (degrees): the punching shoulder goes back on the wind-up and drives through on the strike.")]
-        public float windUpTwist = 18f;
-        public float strikeTwist = 30f;
+        public float windUpTwist = 8f;
+        public float strikeTwist = 12f;
         [Tooltip("The strike snaps the chest and hips round about the vertical (rad/s), the way hips lead a real punch; it buys reach.")]
-        public float strikeTwistKick = 7f;
+        public float strikeTwistKick = 0f;
         [Tooltip("Lean (degrees): back on a charged wind-up, forward into the strike.")]
-        public float windUpLean = 6f;
-        public float strikeLean = 18f;
+        public float windUpLean = 4f;
+        public float strikeLean = 12f;
         [Tooltip("How far the body steps ahead of the gameplay capsule at full strike lean (metres).")]
-        public float strikeStepForward = 0.35f;
+        public float strikeStepForward = 0.4f;
         [Tooltip("A punch steps the player forward (m/s on the capsule): a jab a little, a full charge all of it.")]
         public float lungeSpeed = 2.4f;
         [Range(0f, 1f)] public float jabLungeShare = 0.45f;
@@ -106,11 +110,15 @@ namespace Roadkill
 
         [Header("Knockback")]
         [Tooltip("Impulse on the struck bone (N s per kg m/s of punch momentum), clamped.")]
-        public float knockbackPerMomentum = 0.85f;
+        public float knockbackPerMomentum = 0.6f;
         public float minKnockback = 10f;
-        public float maxKnockback = 55f;
+        public float maxKnockback = 35f;
         [Tooltip("The struck bone itself gets at most this much speed (m/s); the rest of the impulse moves the whole body. Light bones (head, hands) would otherwise snap off their joints.")]
-        public float maxBoneKick = 6f;
+        public float maxBoneKick = 3f;
+        [Tooltip("Share of a hit's impulse applied at the contact point (the rest at the bone's centre): low = a push, not a spin.")]
+        [Range(0f, 1f)] public float hitTorqueShare = 0.25f;
+        [Tooltip("Hits push mostly sideways: at most this much of the knock goes up.")]
+        [Range(0f, 1f)] public float hitLift = 0.15f;
         public float headKnockbackMultiplier = 1.25f;
         public float limbKnockbackMultiplier = 0.8f;
         [Tooltip("Speed added to the victim's capsule (m/s per kg m/s), clamped.")]
@@ -126,11 +134,11 @@ namespace Roadkill
 
         [Header("Victim reaction")]
         [Tooltip("Stagger: the victim's joints and balance soften for a moment (light .. full-power punch).")]
-        public float staggerSecondsLight = 0.3f;
-        public float staggerSecondsHeavy = 0.9f;
+        public float staggerSecondsLight = 0.2f;
+        public float staggerSecondsHeavy = 0.45f;
         [Tooltip("Joint stiffness while staggered (1 = normal).")]
-        [Range(0f, 1f)] public float staggerStiffnessLight = 0.55f;
-        [Range(0f, 1f)] public float staggerStiffnessHeavy = 0.3f;
+        [Range(0f, 1f)] public float staggerStiffnessLight = 0.85f;
+        [Range(0f, 1f)] public float staggerStiffnessHeavy = 0.6f;
         [Tooltip("The shove keeps the victim's footing loose this long (they slide instead of stopping dead).")]
         public float stumbleSeconds = 0.35f;
         [Tooltip("Momentum x zone multiplier at which a punch knocks the victim down (full ragdoll).")]
@@ -158,7 +166,7 @@ namespace Roadkill
         public Color friendlySparkColor = new Color(1f, 0.35f, 0.75f);
         public Color propSparkColor = new Color(0.85f, 0.85f, 0.85f);
 
-        [Header("Sound (empty = generated placeholder)")]
+        [Header("Sound (empty = generated placeholder; no whoosh clip = silent swing)")]
         public AudioClip whooshClip;
         public AudioClip impactClip;
         public AudioClip comedicClip;
@@ -213,6 +221,5 @@ namespace Roadkill
         /// <summary>How long a punch of this charge steps in before the arm goes (none for a light jab).</summary>
         public float StepIn(float charge) => charge < 0.25f ? 0f : haymakerStepSeconds * charge;
         public float StrikeSpeed(float charge) => Mathf.Lerp(jabSpeed, haymakerSpeed, charge);
-        public float Cost(float charge) => Mathf.Lerp(jabCost, haymakerCost, charge);
     }
 }

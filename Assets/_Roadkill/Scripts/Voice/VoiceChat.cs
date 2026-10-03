@@ -22,7 +22,7 @@ namespace Roadkill
         public float openMicThreshold = 0.012f;
         public float hangoverSeconds = 0.3f;
 
-        public bool PushToTalk { get; private set; }
+        public bool PushToTalk { get; private set; } = true;   // V to talk; F2 switches to an open mic
         public bool Loopback { get; private set; }
         public bool Transmitting { get; private set; }
         public float InputLevel { get; private set; }

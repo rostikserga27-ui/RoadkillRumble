@@ -17,7 +17,7 @@ namespace Roadkill
             "E: grab with both hands / let go   G hold, then release: throw\n" +
             "C hold: play possum   Space while down: get up faster\n" +
             "Friend out cold: E drag them, hold F get them up\n" +
-            "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
+            "V hold: talk   F2 open mic on/off   F3 hear yourself\n" +
             "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
 
         PlayerMotor motor;
@@ -92,13 +92,10 @@ namespace Roadkill
             if (aimHint.Length > 0)
                 GUI.Label(new Rect(w * 0.5f + 26f, h * 0.5f - 10f, 300f, 24f), aimHint, label);
 
-            Bar(new Rect(20f, h - 64f, 240f, 20f), health.Health / health.maxHealth, new Color(1f, 0.55f, 0.1f),
-                $"FUEL {Mathf.CeilToInt(health.Health)}");
-            Bar(new Rect(20f, h - 38f, 240f, 14f), motor.Stamina / motor.sprintStaminaSeconds, new Color(0.3f, 0.8f, 1f), "RPM");
+            Bar(new Rect(20f, h - 44f, 240f, 20f), health.Health / health.maxHealth, new Color(0.85f, 0.2f, 0.2f),
+                $"HP {Mathf.CeilToInt(health.Health)}");
             if (fists != null)
             {
-                Bar(new Rect(20f, h - 88f, 240f, 14f), fists.Stamina01, fists.Tired ? new Color(1f, 0.3f, 0.3f) : new Color(1f, 0.85f, 0.3f),
-                    fists.Tired ? "FISTS - too tired" : "FISTS");
                 if (fists.Charge > 0f)
                     Bar(new Rect(w * 0.5f - 80f, h * 0.5f + 42f, 160f, 8f), fists.Charge, new Color(1f, 0.5f, 0.2f), "");
             }
@@ -132,9 +129,10 @@ namespace Roadkill
             if (health.IsDown)
             {
                 GUI.Label(center, $"OUT COLD — {Mathf.CeilToInt(health.DownSecondsLeft)} s", banner);
-                GUI.Label(new Rect(0f, h * 0.3f + 80f, w, 24f), "Friends can drag you (E) or get you up (hold F). Hold R to respawn now.", centered);
+                GUI.Label(new Rect(0f, h * 0.3f + 80f, w, 24f), "0 HP: knocked out. Friends can drag you (E) or get you up (hold F).", centered);
+                GUI.Label(new Rect(0f, h * 0.3f + 120f, w, 40f), "HOLD R TO RESPAWN NOW", banner);
                 if (knockout != null && knockout.GiveUpProgress > 0f)
-                    Bar(new Rect(w * 0.5f - 100f, h * 0.3f + 108f, 200f, 10f), knockout.GiveUpProgress, new Color(1f, 0.4f, 0.3f), "");
+                    Bar(new Rect(w * 0.5f - 100f, h * 0.3f + 164f, 200f, 10f), knockout.GiveUpProgress, new Color(1f, 0.4f, 0.3f), "");
             }
             else if (motor.IsPossum) GUI.Label(center, "PLAYING POSSUM", banner);
             else if (motor.IsRagdolled) GUI.Label(center, "OOF!  (mash Space)", banner);

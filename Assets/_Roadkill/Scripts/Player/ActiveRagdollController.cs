@@ -49,6 +49,7 @@ namespace Roadkill
             [System.NonSerialized] public Vector3 right, forward, up; // character axes in the connected body's frame
             [System.NonSerialized] public Quaternion restRotation;    // relative to the root
             [System.NonSerialized] public Vector3 restPosition;       // relative to the root
+            [System.NonSerialized] public Vector3 armRestDirection;   // upper arms: shoulder to wrist at rest, in the parent's frame
             [System.NonSerialized] public float seed;
         }
 
@@ -82,7 +83,19 @@ namespace Roadkill
         [Range(0f, 1f), Tooltip("Share of the hips' acceleration the upper body gets up front, so quick direction changes do not leave the torso behind.")]
         public float stackFeedForward = 0.9f;
         public float uprightSpring = 120f;    // facing torque on hips and chest
-        public float uprightDamping = 14f;
+        public float uprightDamping = 22f;    // critical for the spring: rights itself without wobbling past
+
+        [Header("Stability")]
+        [Tooltip("Extra damping of spin about the vertical on the hips, spine and chest (1/s): facing comes from the player's aim, not from being hit.")]
+        public float yawDamping = 18f;
+        [Tooltip("And how hard they are turned back to where the player faces (1/s^2).")]
+        public float yawSpring = 200f;
+        [Tooltip("No bone spins faster than this (rad/s).")]
+        public float maxPartAngularVelocity = 14f;
+        [Tooltip("Standing, no bone moves faster than this relative to the capsule (m/s); a knockdown goes limp first, so it can still fly.")]
+        public float maxPartSpeed = 9f;
+        [Tooltip("However hard a hit, balance stays at least this strong while staggering (0..1): a wobble, not a noodle.")]
+        [Range(0f, 1f)] public float minStaggerBalance = 0.8f;
 
         [Header("Gait")]
         public float strideLength = 1.6f;     // metres per full cycle: short, the flip-flops shuffle
@@ -117,6 +130,22 @@ namespace Roadkill
         [Tooltip("Degrees he leans toward a held object per metre it is beyond his reach (the game holds loads out in front).")]
         public float carryLeanPerMetre = 45f;
         public float maxCarryLean = 20f;
+
+        [Header("Arms out (How To Fish)")]
+        [Tooltip("Empty hands are held out in front of the chest, toward where the player looks, instead of hanging and swinging.")]
+        public bool armsOut = true;
+        [Tooltip("The upper arms point this far below horizontal (degrees): mostly down, a little forward.")]
+        public float armsOutDrop = 72f;
+        [Tooltip("And this far out from straight ahead (degrees): about shoulder width.")]
+        public float armsOutSpread = 12f;
+        [Tooltip("Elbows bent this much (degrees): fists up in front of the chest, a scrapper's guard (How To Fish).")]
+        public float armsOutElbow = 115f;
+        [Tooltip("Arm joints this much stiffer while held out, so they do not sag under their own weight.")]
+        public float armsOutStiffness = 5f;
+        [Tooltip("Looking up or down, the arms follow at most this far (degrees).")]
+        public float armsOutMaxPitch = 30f;
+        [Tooltip("Share of the held-out arms' weight taken off them, so the joints hold the pose without sagging or tipping him back.")]
+        [Range(0f, 1f)] public float armsOutWeightless = 0.85f;
         [Range(0f, 1f), Tooltip("Side-steps are this much shorter than forward steps, so the feet do not cross.")]
         public float sideStepScale = 0.3f;
         [Range(0f, 1f), Tooltip("How much he leans into sideways movement and acceleration (forward lean is full).")]
@@ -155,7 +184,7 @@ namespace Roadkill
         /// <summary>The networked player this body belongs to, if any (hits on the body count as hits on them).</summary>
         public PlayerNet Player { get; private set; }
 
-        Part hips, chest;
+        Part hips, chest, head;
         readonly Part[] upperArms = new Part[2], lowerArms = new Part[2], hands = new Part[2];   // 0 left, 1 right
         readonly bool[] reaching = new bool[2];
         readonly Vector3[] reachTargets = new Vector3[2];
@@ -195,6 +224,7 @@ namespace Roadkill
             {
                 if (p.role == Role.Hips) hips = p;
                 if (p.role == Role.Chest) chest = p;
+                if (p.role == Role.Head) head = p;
                 if (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand) armMass += p.body.mass;
                 int sideIndex = p.side < 0f ? 0 : 1;
                 if (p.role == Role.UpperArm) upperArms[sideIndex] = p;
@@ -202,7 +232,7 @@ namespace Roadkill
                 if (p.role == Role.Hand) hands[sideIndex] = p;
                 ownBodies.Add(p.body);
                 totalMass += p.body.mass;
-                p.body.maxAngularVelocity = 25f;
+                p.body.maxAngularVelocity = maxPartAngularVelocity;
                 p.body.solverIterations = 20;
                 p.body.solverVelocityIterations = 10;
                 p.restRotation = rootInverse * p.body.rotation;
@@ -225,6 +255,13 @@ namespace Roadkill
                 p.up = parentInverse * root.up;
             }
             IgnoreNeighbourCollisions();
+            foreach (var p in parts)
+            {
+                if (p.role != Role.UpperArm || p.joint == null) continue;
+                var hand = hands[p.side < 0f ? 0 : 1];
+                if (hand != null)
+                    p.armRestDirection = (Quaternion.Inverse(p.joint.connectedBody.rotation) * (hand.body.position - p.body.position)).normalized;
+            }
             lastRootPosition = root.position;
         }
 
@@ -291,7 +328,13 @@ namespace Roadkill
             if ((hips.body.position - (root.position + Vector3.up * hipHeight)).sqrMagnitude > 16f) SnapToRoot();
 
             foreach (var p in parts)
-                p.body.AddForce(Physics.gravity * (gravityMultiplier - 1f), ForceMode.Acceleration);
+            {
+                float g = gravityMultiplier - 1f;
+                // Arms held out are mostly weightless while he stands (they drop again when he goes limp).
+                if (armsOut && (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand))
+                    g -= gravityMultiplier * armsOutWeightless * weight;
+                p.body.AddForce(Physics.gravity * g, ForceMode.Acceleration);
+            }
 
             UpdateDrives();
             if (weight > 0f)
@@ -357,13 +400,22 @@ namespace Roadkill
             {
                 if (p.joint == null) continue;
                 float k = p.strength * weight * soft * PlaygroundRules.JointScale;
+                float kd = 1f;   // damping to match a stiffer spring
                 if (p.role == Role.Head) k *= Mathf.Lerp(1f, 0.2f, headFloppiness);
                 if (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand)
-                    k *= Mathf.Lerp(1f, 0.25f, reachWeight[p.side < 0f ? 0 : 1]);   // let the reach pull the arm
+                {
+                    float reach = reachWeight[p.side < 0f ? 0 : 1];
+                    if (armsOut)
+                    {
+                        k *= Mathf.Lerp(armsOutStiffness, 1f, reach);   // held out against gravity, wrists in line
+                        kd = Mathf.Lerp(Mathf.Sqrt(armsOutStiffness) * 1.5f, 1f, reach);   // and damped to match, so they do not bob
+                    }
+                    k *= Mathf.Lerp(1f, 0.25f, reach);   // let the reach pull the arm
+                }
                 p.joint.slerpDrive = new JointDrive
                 {
                     positionSpring = jointSpring * k,
-                    positionDamper = jointDamper * p.strength * Mathf.Lerp(0.15f, 1f, weight),
+                    positionDamper = jointDamper * p.strength * kd * Mathf.Lerp(0.15f, 1f, weight),
                     maximumForce = maxForce * p.strength
                 };
             }
@@ -372,7 +424,7 @@ namespace Roadkill
         /// <summary>Hips chase the capsule; hips and chest are righted toward the capsule's facing.</summary>
         void Balance()
         {
-            float s = weight * balanceStrength * PlaygroundRules.BalanceScale * (staggerTimer > 0f ? staggerStiffness + 0.05f : 1f);
+            float s = weight * balanceStrength * PlaygroundRules.BalanceScale * (staggerTimer > 0f ? Mathf.Max(minStaggerBalance, staggerStiffness + 0.05f) : 1f);
             float walk = Mathf.Clamp01(speed / fullStrideSpeed);
             float t = Time.time;
 
@@ -415,8 +467,30 @@ namespace Roadkill
                 float share = p.role == Role.Head ? 1f - 0.75f * headFloppiness : 1f;
                 p.body.AddForce(pull * (mass * s * share), ForceMode.Force);
             }
-            Right(hips, upright, uprightSpring, uprightDamping, s);
+            // The hips face where the player aims; only the chest takes a punch's twist.
+            Quaternion uprightHips = facing * Quaternion.AngleAxis(leanForward, Vector3.right) * Quaternion.AngleAxis(-leanSide, Vector3.forward);
+            Right(hips, uprightHips, uprightSpring, uprightDamping, s);
             Right(chest, upright, uprightSpring * 0.6f, uprightDamping * 0.8f, s);
+
+            // Whatever hits him, he does not spin like a top: damp the torso's turn about the vertical, and
+            // keep every bone within a sane speed of the capsule while he is on his feet.
+            foreach (var p in parts)
+            {
+                if (p.role == Role.Hips || p.role == Role.Spine || p.role == Role.Chest)
+                {
+                    // Facing on the ground plane: the hips (and spine) to the aim, the chest to the aim plus a punch's twist.
+                    Quaternion wantedFacing = p.role == Role.Chest ? facing * Quaternion.AngleAxis(extraTwist, Vector3.up) : facing;
+                    Vector3 have = Vector3.ProjectOnPlane(p.body.rotation * Quaternion.Inverse(p.restRotation) * Vector3.forward, Vector3.up);
+                    float error = have.sqrMagnitude > 0.01f ? Vector3.SignedAngle(have, wantedFacing * Vector3.forward, Vector3.up) * Mathf.Deg2Rad : 0f;
+                    p.body.AddTorque(Vector3.up * ((error * yawSpring - p.body.angularVelocity.y * yawDamping) * s), ForceMode.Acceleration);
+                }
+                if (weight > 0.9f && !BodyLeads)
+                {
+                    Vector3 relative = p.body.linearVelocity - rootVelocity;
+                    if (relative.sqrMagnitude > maxPartSpeed * maxPartSpeed)
+                        p.body.linearVelocity = rootVelocity + relative.normalized * maxPartSpeed;
+                }
+            }
         }
 
         static void Right(Part p, Quaternion characterRotation, float spring, float damping, float strength)
@@ -485,12 +559,22 @@ namespace Roadkill
                         aboutRight -= swing * 12f * walk + crouchThigh * 0.8f * crouch;       // feet stay flat
                         break;
                     case Role.UpperArm:
+                        if (armsOut && p.armRestDirection != Vector3.zero)
+                        {
+                            // Held out in front (How To Fish): turn the arm from its rest direction to point ahead,
+                            // a little down and out, following where the player looks; a small wobble on top.
+                            Vector3 wanted = ArmsOutDirection(p.side, p.right, p.up, p.forward);
+                            Quaternion held = Quaternion.FromToRotation(p.armRestDirection, wanted);
+                            Quaternion jiggle = Quaternion.AngleAxis(nx * 0.5f + thrash * 0.3f, p.right) * Quaternion.AngleAxis(nz * 0.5f, p.up);
+                            SetTarget(p, jiggle * held * p.startLocal);
+                            continue;
+                        }
                         stride = -legSign * s * armSwing * walk * Mathf.Lerp(1f, 0.3f, sideways);   // arms barely swing on a side-step
                         aboutRight += thrash;
                         aboutForward += -p.side * (armHang - air * 75f);          // hang by the sides, fly up when airborne
                         break;
                     case Role.LowerArm:
-                        float bend = elbowBend + Mathf.Max(0f, -legSign * s) * elbowBend * walk + Mathf.Abs(thrash) * 0.5f;
+                        float bend = armsOut ? armsOutElbow : elbowBend + Mathf.Max(0f, -legSign * s) * elbowBend * walk + Mathf.Abs(thrash) * 0.5f;
                         aboutRight -= Mathf.Lerp(bend, 8f, reachWeight[p.side < 0f ? 0 : 1]);   // reaching: arm almost straight
                         break;
                     case Role.Hand:
@@ -585,6 +669,36 @@ namespace Roadkill
                 float mass = hand.body.mass + lowerArms[i].body.mass + upperArms[i].body.mass * 0.5f;
                 hand.body.AddForce(pull * (mass * weight * reachWeight[i]), ForceMode.Force);
             }
+        }
+
+        /// <summary>
+        /// Where an empty hand is held (armsOut): in front of its shoulder toward where the player looks (pitch
+        /// limited), a little low and in toward the middle, like How To Fish's arms-out stance. Punches start
+        /// from here and come back to it (PunchArmDriver).
+        /// </summary>
+        public Vector3 ArmsOutPoint(int hand)
+        {
+            hand = Mathf.Clamp(hand, 0, 1);
+            Quaternion facing = Facing();
+            // Elbow under and ahead of the shoulder, forearm out in front: the hand sits before the belly.
+            Vector3 upper = ArmsOutDirection(hands[hand].side, facing * Vector3.right, Vector3.up, facing * Vector3.forward);
+            Vector3 elbow = upperArms[hand].body.position + upper * Vector3.Distance(upperArms[hand].restPosition, lowerArms[hand].restPosition);
+            Vector3 forearm = Quaternion.AngleAxis(-armsOutElbow, facing * Vector3.right) * upper;
+            return elbow + forearm * Vector3.Distance(lowerArms[hand].restPosition, hands[hand].restPosition);
+        }
+
+        /// <summary>Which way a held-out arm points, given the character's right, up and forward axes in some frame.</summary>
+        Vector3 ArmsOutDirection(float side, Vector3 right, Vector3 up, Vector3 forward)
+        {
+            float pitch = 0f;   // looking up: positive
+            if (hasLook)
+            {
+                Vector3 aim = look * Vector3.forward;
+                pitch = Mathf.Clamp(Mathf.Asin(Mathf.Clamp(aim.y, -1f, 1f)) * Mathf.Rad2Deg, -armsOutMaxPitch, armsOutMaxPitch);
+            }
+            float down = (armsOutDrop - pitch) * Mathf.Deg2Rad, outward = armsOutSpread * Mathf.Deg2Rad;
+            Vector3 ahead = forward * Mathf.Cos(outward) + right * (side * Mathf.Sin(outward));
+            return (ahead * Mathf.Cos(down) - up * Mathf.Sin(down)).normalized;
         }
 
         /// <summary>Drive a joint toward a rotation relative to its connected body.</summary>
@@ -722,6 +836,9 @@ namespace Roadkill
         public Rigidbody LowerArmBody(int hand) => lowerArms[Mathf.Clamp(hand, 0, 1)]?.body;
         public Rigidbody UpperArmBody(int hand) => upperArms[Mathf.Clamp(hand, 0, 1)]?.body;
         public Rigidbody Chest => chest?.body;
+        public Rigidbody Head => head?.body;
+        /// <summary>How far the chest leans from upright (degrees), whatever the bone's own axes.</summary>
+        public float TorsoTilt => chest == null ? 0f : Vector3.Angle(chest.body.rotation * Quaternion.Inverse(chest.restRotation) * Vector3.up, Vector3.up);
         public float TotalMass => totalMass;
         /// <summary>Shoulder to wrist at full stretch (metres).</summary>
         public float ArmLength(int hand) => Vector3.Distance(upperArms[Mathf.Clamp(hand, 0, 1)].restPosition, hands[Mathf.Clamp(hand, 0, 1)].restPosition);
@@ -732,6 +849,8 @@ namespace Roadkill
         public Collider RootCollider => rootCollider;
         public bool IsSimulated => simulated;
         public bool OwnsBody(Rigidbody body) => body != null && ownBodies.Contains(body);
+        /// <summary>Is hand 0 (left) or 1 (right) reaching for something it holds?</summary>
+        public bool IsReaching(int hand) => reaching[Mathf.Clamp(hand, 0, 1)];
         public Role PartRole(int index) => parts[index].role;
         public float PartSide(int index) => parts[index].side;
 
@@ -821,14 +940,37 @@ namespace Roadkill
 
         /// <summary>Teleport the whole body to its rest pose at the capsule (respawn, reset, falling out of range).</summary>
         [ContextMenu("Reset Pose")]
-        public void ResetPose() => SnapToRoot();
+        public void ResetPose() => SnapToRoot(keepPose: false);
+
+        /// <summary>
+        /// Put the body at the capsule in whatever pose it has now, stood upright (respawn, being gathered): it
+        /// gets back into its stance from there instead of flashing the model's stiff A-pose.
+        /// </summary>
+        public void MoveToRoot() => SnapToRoot(keepPose: true);
 
         const float TeleportStep = 1f;   // metres in one physics step: nothing walks or flies that fast
+
+        /// <summary>Tests: average degrees between each joint and its rest pose (0 = standing in the model's A-pose).</summary>
+        public float RestPoseError
+        {
+            get
+            {
+                float sum = 0f;
+                int n = 0;
+                foreach (var p in parts)
+                {
+                    if (p.joint == null || p.role == Role.Hand || p.role == Role.Foot) continue;
+                    sum += Quaternion.Angle(Quaternion.Inverse(p.joint.connectedBody.rotation) * p.body.rotation, p.startLocal);
+                    n++;
+                }
+                return n > 0 ? sum / n : 0f;
+            }
+        }
 
         /// <summary>How many times the body was teleported back onto the capsule (tests).</summary>
         public int SnapCount { get; private set; }
 
-        void SnapToRoot()
+        void SnapToRoot(bool keepPose = true)
         {
             SnapCount++;
             if (root == null) return;
@@ -837,10 +979,22 @@ namespace Roadkill
             rootAcceleration = Vector3.zero;
             lastRootPosition = root.position;
             knockoutTimer = staggerTimer = 0f;
+
+            // Keeping the pose: turn the whole body about its hips so the hips stand as at rest, move it onto the
+            // capsule, and lift it if a sprawled limb would end up in the ground.
+            Vector3 hipsTarget = root.position + root.rotation * hips.restPosition;
+            Quaternion turn = (root.rotation * hips.restRotation) * Quaternion.Inverse(hips.body.rotation);
+            Vector3 hipsNow = hips.body.position;
+            float lift = 0f;
+            if (keepPose)
+                foreach (var p in parts)
+                    lift = Mathf.Max(lift, root.position.y + 0.03f - (hipsTarget + turn * (p.body.position - hipsNow)).y);
+
             foreach (var p in parts)
             {
-                Vector3 position = root.position + root.rotation * p.restPosition;
-                Quaternion rotation = root.rotation * p.restRotation;
+                Vector3 position = keepPose ? hipsTarget + turn * (p.body.position - hipsNow) + Vector3.up * lift
+                                            : root.position + root.rotation * p.restPosition;
+                Quaternion rotation = keepPose ? turn * p.body.rotation : root.rotation * p.restRotation;
                 p.body.transform.SetPositionAndRotation(position, rotation);
                 p.body.position = position;
                 p.body.rotation = rotation;

@@ -141,6 +141,7 @@ namespace Roadkill.EditorTools
             var tint = model.AddComponent<PaletteTint>();
             tint.renderers = model.GetComponentsInChildren<SkinnedMeshRenderer>().Where(r => r.name.EndsWith("Clothes")).ToArray<Renderer>();
             foreach (var r in model.GetComponentsInChildren<SkinnedMeshRenderer>()) r.updateWhenOffscreen = true;   // bounds follow the ragdoll
+            FistRig.AddToBody(model);   // finger bones, so he can make a fist
         }
 
         static Rigidbody ParentBody(Transform bone, Dictionary<Transform, Rigidbody> byBone)

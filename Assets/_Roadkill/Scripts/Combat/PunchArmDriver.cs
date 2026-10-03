@@ -278,15 +278,20 @@ namespace Roadkill
             Vector3 forward = facing * Vector3.forward, right = facing * Vector3.right;
             Vector3 shoulder = arm.Upper.position;
             float length = Body.ArmLength(arm.Index);
-            // Guard: fist up by the chin, a little in front and toward the middle.
-            Vector3 guard = shoulder + forward * (length * 0.35f) + Vector3.up * 0.06f - right * (arm.Side * 0.1f);
+            // Guard: in front of the shoulder and out to its side (never by the chin), kept clear of the head.
+            // With arms out (How To Fish) the fist starts from, and comes back to, where the hand is held anyway.
+            Vector3 guard = ClearOfHead(Body.armsOut ? Body.ArmsOutPoint(arm.Index)
+                : shoulder + forward * config.guardForward + right * (arm.Side * config.guardSide) + Vector3.up * config.guardUp);
+            PushOutOfHead(arm);
 
             switch (arm.Phase)
             {
                 case Phase.WindUp:
                 {
                     Body.SetArmDriven(arm.Index, true);
-                    Vector3 cocked = guard - forward * (config.windUpPullBack * arm.Charge) + Vector3.up * (0.05f * arm.Charge);
+                    // Cocked: the fist comes back to the chest (even for a jab, so it has room to get going and
+                    // flies over the arms held out in front), further back with charge, clear of the head.
+                    Vector3 cocked = Chamber(shoulder, forward, right, arm);
                     Pull(arm, cocked, config.windUpSpring, config.windUpDamping);
                     wantTwist += arm.Side * config.windUpTwist * (0.4f + 0.6f * arm.Charge);
                     wantLean -= config.windUpLean * arm.Charge;
@@ -298,7 +303,7 @@ namespace Roadkill
                     if (!arm.Thrown)
                     {
                         // Stepping in: the fist stays cocked while the body goes forward and starts to turn.
-                        Vector3 cocked = guard - forward * (config.windUpPullBack * arm.Charge);
+                        Vector3 cocked = Chamber(shoulder, forward, right, arm);
                         Pull(arm, cocked, config.windUpSpring, config.windUpDamping);
                         wantTwist -= arm.Side * config.strikeTwist * 0.3f;
                         wantLean += config.strikeLean * 0.5f;
@@ -314,6 +319,7 @@ namespace Roadkill
                     Vector3 toPoint = arm.AimPoint - arm.Hand.position;
                     Vector3 direction = Vector3.Dot(toPoint, arm.Aim) > 0.05f ? toPoint.normalized : arm.Aim;
                     Vector3 wanted = Body.RootVelocity + direction * config.StrikeSpeed(arm.Charge);
+                    wanted = AwayFromHead(arm.Hand.worldCenterOfMass, wanted);
                     Accelerate(arm, (wanted - arm.Hand.linearVelocity) * config.strikeVelocityGain);
                     ClampFistSpeed(arm);
                     wantTwist -= arm.Side * config.strikeTwist * (0.6f + 0.4f * arm.Charge);
@@ -323,8 +329,10 @@ namespace Roadkill
                 }
                 case Phase.Recovery:
                 {
+                    // Back down toward the hip, so the gait takes the arm over from where it would hang anyway.
                     float left = 1f - Mathf.Clamp01(arm.Time / Mathf.Max(0.01f, config.recoverySeconds));
-                    Pull(arm, guard, config.recoverySpring * left, config.recoveryDamping);
+                    Vector3 down = Body.armsOut ? guard : ClearOfHead(shoulder + forward * 0.12f + right * (arm.Side * 0.08f) - Vector3.up * (length * 0.8f));
+                    Pull(arm, down, config.recoverySpring * left, config.recoveryDamping);
                     wantTwist -= arm.Side * config.strikeTwist * 0.6f * left;
                     wantLean += config.strikeLean * 0.5f * left;
                     if (left <= 0f)
@@ -343,6 +351,50 @@ namespace Roadkill
             arm.Phase = Phase.Recovery;
             arm.Time = 0f;
             SetContinuous(arm, false);
+        }
+
+        /// <summary>Where a fist is cocked: by the chest in front of its shoulder, pulled further back with charge.</summary>
+        Vector3 Chamber(Vector3 shoulder, Vector3 forward, Vector3 right, Arm arm) =>
+            ClearOfHead(shoulder + forward * (config.chamberForward - config.windUpPullBack * arm.Charge)
+                        + right * (arm.Side * (config.chamberSide + 0.04f * arm.Charge)) - Vector3.up * config.chamberDown);
+
+        /// <summary>A target for the fist, moved out of the sphere around this body's head if it falls inside.</summary>
+        Vector3 ClearOfHead(Vector3 target)
+        {
+            var head = Body.Head;
+            if (head == null) return target;
+            Vector3 offset = target - head.worldCenterOfMass;
+            float distance = offset.magnitude;
+            if (distance >= config.headClearance) return target;
+            Vector3 outward = distance > 0.001f ? offset / distance : Body.FacingRotation * Vector3.forward;
+            return head.worldCenterOfMass + outward * config.headClearance;
+        }
+
+        /// <summary>Near its own head, a fist is not driven any further toward it (only around and past it).</summary>
+        Vector3 AwayFromHead(Vector3 position, Vector3 velocity)
+        {
+            var head = Body.Head;
+            if (head == null) return velocity;
+            Vector3 offset = position - head.worldCenterOfMass;
+            if (offset.sqrMagnitude > config.headClearance * config.headClearance * 1.5f * 1.5f) return velocity;
+            Vector3 outward = offset.normalized;
+            float inward = Vector3.Dot(velocity - Body.RootVelocity, -outward);
+            return inward > 0f ? velocity + outward * inward : velocity;
+        }
+
+        /// <summary>A fist that strayed inside the head's clearance (it does not collide with its own head) is pushed back out.</summary>
+        void PushOutOfHead(Arm arm)
+        {
+            var head = Body.Head;
+            if (head == null) return;
+            foreach (var part in new[] { arm.Hand, arm.Forearm })
+            {
+                Vector3 offset = part.worldCenterOfMass - head.worldCenterOfMass;
+                float depth = config.headClearance - offset.magnitude;
+                if (depth <= 0f) continue;
+                Vector3 outward = offset.sqrMagnitude > 0.000001f ? offset.normalized : Body.FacingRotation * Vector3.forward;
+                part.AddForce(outward * (depth * config.headClearanceSpring), ForceMode.Acceleration);
+            }
         }
 
         /// <summary>PD pull of the hand toward a point.</summary>

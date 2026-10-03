@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "14";
+        const string BuildVersion = "17";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -144,7 +144,7 @@ namespace Roadkill.EditorTools
             }
             var hands = go.AddComponent<HandsController>();
             hands.viewCamera = cam;
-            hands.handModel = AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath);
+            hands.handModel = FirstPersonFist();
             var voice = go.AddComponent<VoiceChat>();
             voice.mouthPoint = head;
             voice.mouthVisual = mouth;
@@ -166,6 +166,23 @@ namespace Roadkill.EditorTools
         }
 
         const string HandModelPath = CharacterModelImport.FishermanFolder + "FisherFPArm.fbx";
+
+        /// <summary>The first-person arm with its hand closed into a fist (the mesh is read, so it is imported readable for a moment).</summary>
+        static GameObject FirstPersonFist()
+        {
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath) == null) return null;
+            CharacterModelImport.ForceReadable = true;
+            try
+            {
+                AssetDatabase.ImportAsset(HandModelPath, ImportAssetOptions.ForceUpdate);
+                return FistRig.FirstPersonFist(AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath));
+            }
+            finally
+            {
+                CharacterModelImport.ForceReadable = false;
+                AssetDatabase.ImportAsset(HandModelPath, ImportAssetOptions.ForceUpdate);
+            }
+        }
 
         /// <summary>
         /// The fisherman (Generated/Fisherman_Ragdoll.prefab, nested so it stays one source of truth) wired

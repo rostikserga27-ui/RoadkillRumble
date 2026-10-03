@@ -18,6 +18,36 @@ namespace Roadkill
     {
         public bool victimMode;
         public bool duelMode;
+        /// <summary>Tests: the punch and ragdoll numbers from before the stability pass, to compare against.</summary>
+        public static bool OldFeel;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => OldFeel = false;
+
+        static string savedConfig;
+
+        // In the editor the config is the real asset: put it back however the test ends.
+        void OnDestroy()
+        {
+            if (savedConfig == null) return;
+            JsonUtility.FromJsonOverwrite(savedConfig, PunchConfig.Current);
+            savedConfig = null;
+        }
+
+        static void ApplyOldFeel()
+        {
+            var c = PunchConfig.Current;
+            savedConfig = JsonUtility.ToJson(c);
+            c.strikeRecoil = 0.2f; c.windUpTwist = 18f; c.strikeTwist = 30f; c.strikeTwistKick = 7f;
+            c.knockbackPerMomentum = 0.85f; c.maxKnockback = 55f; c.maxBoneKick = 6f; c.hitTorqueShare = 1f; c.hitLift = 1f;
+            c.staggerSecondsLight = 0.3f; c.staggerSecondsHeavy = 0.9f; c.staggerStiffnessLight = 0.55f; c.staggerStiffnessHeavy = 0.3f;
+            c.guardForward = 0.14f; c.guardSide = -0.1f; c.guardUp = 0.06f; c.headClearance = 0f;
+            foreach (var body in FindObjectsByType<ActiveRagdollController>(FindObjectsInactive.Exclude))
+            {
+                body.uprightDamping = 14f; body.yawDamping = 0f; body.maxPartSpeed = 1000f; body.minStaggerBalance = 0f;
+                for (int i = 0; i < body.PartCount; i++) body.PartBody(i).maxAngularVelocity = 25f;
+            }
+        }
         public float duelSeconds = 40f;
         [Tooltip("Seconds to wait for a second player before skipping the player tests.")]
         public float waitForPlayerSeconds = 25f;
@@ -283,8 +313,16 @@ namespace Roadkill
             yield return new WaitForSeconds(1f);
             yield return KnockOut(me, other, knockout);
             float waited = 0f;
-            for (; waited < 20f && knockout.IsUnconscious; waited += 0.5f) yield return new WaitForSeconds(0.5f);
-            yield return new WaitForSeconds(1f);
+            for (; waited < 20f && knockout.IsUnconscious; waited += 0.1f) yield return new WaitForSeconds(0.1f);
+            // Just respawned: the body (here, a copy) must not flash the model's stiff A-pose.
+            float closest = 999f;
+            for (float t = 0f; t < 1f; t += Time.fixedDeltaTime)
+            {
+                yield return new WaitForFixedUpdate();
+                if (body != null && !body.IsPuppet) closest = Mathf.Min(closest, body.RestPoseError);
+            }
+            Check("no A/T-pose after respawning", closest > 6f, $"joints at least {closest:0.0} deg from the rest pose in the first second");
+            spawn = new Vector3(-2.25f + (other.OwnerClientId % 4) * 1.5f, 0.05f, -9f);   // as PlayerNet places it
             float fromSpawn = Vector3.Distance(other.transform.position, spawn);
             Check("respawn when the clock runs out", !knockout.IsUnconscious && fromSpawn < 3f,
                 $"after {waited:0.0} s, {fromSpawn:0.0} m from the spawn point");
@@ -328,6 +366,15 @@ namespace Roadkill
             public bool Has, Puppet;
             public int Snaps, HipsJumps, RelativeJumps, RootJumps, PuppetSwitches;
             public float MaxHipsStep, MaxRelative, MaxRootStep;
+            public float MaxYawRate, MaxTilt, SumYawRate, SumTilt;   // fully on his feet: spin beyond his facing, torso lean
+            public int Samples;
+            public float RootYaw;
+            public float MinFistHead = 9f;   // own body, while punching: closest a fist came to its own head
+            public readonly int[] ArmBusy = new int[2], ArmHigh = new int[2], ArmHighIdle = new int[2];
+            public float DownSince = -1f, MinRestErrorDown = 999f;
+            public int NearRestDown, LongDowns, Downs;
+            public bool StuckLogged;
+            public int ArmSamples;
         }
 
         IEnumerator Duel(PlayerNet me)
@@ -344,7 +391,8 @@ namespace Roadkill
                 Log("duel: nobody to fight");
                 yield break;
             }
-            Log($"duel: {PlayerNet.NameOf(me.OwnerClientId)} vs {PlayerNet.NameOf(other.OwnerClientId)}");
+            if (OldFeel) ApplyOldFeel();
+            Log($"duel: {PlayerNet.NameOf(me.OwnerClientId)} vs {PlayerNet.NameOf(other.OwnerClientId)}{(OldFeel ? " (old feel)" : "")}");
             var fists = me.GetComponent<PlayerFists>();
             var tracks = new List<Track>();
             foreach (var p in new[] { me, other })
@@ -360,7 +408,7 @@ namespace Roadkill
                 {
                     Vector3 to = Vector3.ProjectOnPlane(other.transform.position - me.transform.position, Vector3.up);
                     float d = to.magnitude;
-                    me.Motor.DebugLook(other.transform.position + Vector3.up * 1.35f);
+                    me.Motor.DebugLook(other.transform.position + Vector3.up * 1.35f, 30f);   // a mouse turn, ~300 deg/s at most
                     Vector2 move = d > 1.4f ? new Vector2(0f, 1f) : d < 0.8f ? new Vector2(0f, -0.6f) : new Vector2(Mathf.Sin(Time.time * 1.3f) * 0.8f, 0.2f);
                     me.Motor.DebugMove(move, 0.25f);
                     if (fists.TargetInRange && Time.time > nextPunch)
@@ -402,6 +450,52 @@ namespace Roadkill
                         t.MaxHipsStep = Mathf.Max(t.MaxHipsStep, hipsStep);
                         t.MaxRelative = Mathf.Max(t.MaxRelative, relative);
                         t.MaxRootStep = Mathf.Max(t.MaxRootStep, rootStep);
+                        float rootYaw = t.Player.transform.eulerAngles.y;
+                        float facingRate = Mathf.DeltaAngle(t.RootYaw, rootYaw) * Mathf.Deg2Rad / Time.fixedDeltaTime;
+                        t.RootYaw = rootYaw;
+                        if (!t.Player.IsRagdolledShared && !puppet && body.ActiveWeight > 0.95f)
+                        {
+                            float spin = Mathf.Abs(body.Hips.angularVelocity.y - facingRate);   // turning beyond where he looks
+                            t.MaxYawRate = Mathf.Max(t.MaxYawRate, spin);
+                            t.SumYawRate += spin;
+                            t.SumTilt += body.TorsoTilt;
+                            t.Samples++;
+                            t.MaxTilt = Mathf.Max(t.MaxTilt, body.TorsoTilt);
+                        }
+                        // Down: how long, and does the limp body ever look like the model's stiff A-pose?
+                        bool down = t.Player.IsRagdolledShared;
+                        if (down && t.DownSince < 0f) { t.DownSince = Time.time; t.Downs++; t.StuckLogged = false; }
+                        if (!down) t.DownSince = -1f;
+                        if (down && Time.time - t.DownSince > 0.3f)
+                        {
+                            float rest = body.RestPoseError;
+                            t.MinRestErrorDown = Mathf.Min(t.MinRestErrorDown, rest);
+                            if (rest < 6f && t.NearRestDown++ < 3)
+                                Log($"  T-POSE? {Who(t)} down {Time.time - t.DownSince:0.0} s, joints {rest:0.0} deg from rest, puppet {puppet}, limp {body.IsLimp}, weight {body.ActiveWeight:0.00}, snaps {body.SnapCount - t.Snaps}");
+                        }
+                        if (down && t.Player.IsOwner && !t.StuckLogged && Time.time - t.DownSince > 7f && !t.Player.Health.IsDown)
+                        {
+                            t.StuckLogged = true;
+                            t.LongDowns++;
+                            Log($"  STUCK DOWN {Who(t)} for {Time.time - t.DownSince:0.0} s: {t.Player.Motor.DebugState}");
+                        }
+                        var fists = t.Player.GetComponent<PlayerFists>();
+                        if (fists != null && fists.Driver != null && !t.Player.IsRagdolledShared && !puppet)
+                        {
+                            t.ArmSamples++;
+                            for (int h = 0; h < 2; h++)
+                            {
+                                bool busy = fists.Driver.IsBusy(h);
+                                bool high = body.HandBody(h).position.y > body.UpperArmBody(h).position.y - 0.05f;
+                                if (busy) t.ArmBusy[h]++;
+                                if (high) t.ArmHigh[h]++;
+                                if (high && !busy) t.ArmHighIdle[h]++;
+                            }
+                        }
+                        if (t.Player.IsOwner && fists != null && fists.Driver != null && body.Head != null)
+                            for (int h = 0; h < 2; h++)
+                                if (fists.Driver.IsBusy(h))
+                                    t.MinFistHead = Mathf.Min(t.MinFistHead, Vector3.Distance(body.HandBody(h).worldCenterOfMass, body.Head.worldCenterOfMass));
                         bool jump = false;
                         if (hipsStep > 0.25f) { t.HipsJumps++; jump = true; }
                         if (relative > 0.2f) { t.RelativeJumps++; jump = true; }
@@ -429,6 +523,13 @@ namespace Roadkill
                 Log($"duel {when}: {Who(t)} hips max {t.MaxHipsStep:0.00} m/step, jumps {t.HipsJumps}, vs capsule max {t.MaxRelative:0.00} " +
                     $"({t.RelativeJumps} jumps), capsule max {t.MaxRootStep:0.00} ({t.RootJumps} jumps), puppet switches {t.PuppetSwitches}, " +
                     $"snaps {t.Player.body.SnapCount - t.Snaps}, health {t.Player.Health.Health:0}");
+                int n = Mathf.Max(1, t.Samples);
+                Log($"duel {when}: {Who(t)} STABILITY{(OldFeel ? " (old feel)" : "")}: spin beyond facing max {t.MaxYawRate:0.0} rad/s, mean {t.SumYawRate / n:0.00}; " +
+                    $"torso tilt max {t.MaxTilt:0} deg, mean {t.SumTilt / n:0.0}" + (t.Player.IsOwner ? $"; closest fist to own head {t.MinFistHead:0.00} m" : ""));
+                Log($"duel {when}: {Who(t)} DOWN: {t.Downs} times, stuck >7 s {t.LongDowns}, closest to rest pose while down {t.MinRestErrorDown:0.0} deg");
+                int a = Mathf.Max(1, t.ArmSamples);
+                Log($"duel {when}: {Who(t)} ARMS (L/R % of standing time): punching {100 * t.ArmBusy[0] / a}/{100 * t.ArmBusy[1] / a}, " +
+                    $"hand at shoulder height or above {100 * t.ArmHigh[0] / a}/{100 * t.ArmHigh[1] / a}, of that not punching {100 * t.ArmHighIdle[0] / a}/{100 * t.ArmHighIdle[1] / a}");
             }
         }
 

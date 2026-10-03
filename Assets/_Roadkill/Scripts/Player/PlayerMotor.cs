@@ -22,8 +22,6 @@ namespace Roadkill
         public float walkSpeed = 4.5f;
         public float sprintSpeed = 7f;
         public float crouchSpeed = 2.5f;
-        public float sprintStaminaSeconds = 6f;
-        public float staminaRegenPerSecond = 1.5f;
         public float jumpHeight = 1.1f;
         public float groundAcceleration = 40f;
         public float airAcceleration = 8f;
@@ -50,7 +48,6 @@ namespace Roadkill
         public float mashRecoveryBonus = 0.4f;
         public float standUpSeconds = 0.35f;
 
-        public float Stamina { get; private set; }
         public bool IsGrounded { get; private set; }
         public bool IsCrouching { get; private set; }
         public bool IsSprinting { get; private set; }
@@ -115,7 +112,6 @@ namespace Roadkill
             };
             capsule.sharedMaterial = slideMaterial;
 
-            Stamina = sprintStaminaSeconds;
             yaw = transform.eulerAngles.y;
             spawnPosition = transform.position;
             spawnRotation = transform.rotation;
@@ -206,14 +202,11 @@ namespace Roadkill
             Vector2 input = Time.time < debugMoveUntil ? debugMove : RkInput.Move;
             bool moving = input.sqrMagnitude > 0.01f;
             bool canSprint = hands == null || hands.CanSprint;
-            IsSprinting = !IsCrouching && RkInput.Sprint && canSprint && moving && Stamina > 0f;
+            IsSprinting = !IsCrouching && RkInput.Sprint && canSprint && moving;   // no stamina: sprint as long as you like
 
             float speed = IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed;
             if (hands != null) speed *= hands.SpeedMultiplier;
             speed *= PlaygroundRules.SpeedScale;
-            Stamina = IsSprinting
-                ? Mathf.Max(0f, Stamina - dt)
-                : Mathf.Min(sprintStaminaSeconds, Stamina + staminaRegenPerSecond * dt);
 
             launchGrace -= dt;
             if (launched && IsGrounded && launchGrace <= 0f) launched = false;
@@ -558,7 +551,7 @@ namespace Roadkill
             state = State.Normal;
             rb.constraints = RigidbodyConstraints.FreezeRotation;
             capsule.sharedMaterial = slideMaterial;
-            if (body != null && body.enabled) body.ResetPose();
+            if (body != null && body.enabled) body.MoveToRoot();
         }
 
         /// <summary>
@@ -592,6 +585,10 @@ namespace Roadkill
         Vector2 debugMove;
         float debugMoveUntil = -1f;
 
+        /// <summary>Tests: what the motor is doing, for logs.</summary>
+        public string DebugState => $"state {state}, timer {ragdollTimer:0.0}, elapsed {ragdollElapsed:0.0}, bodyLeads {bodyLeads}, " +
+            $"hips speed {(bodyLeads && body != null ? body.Hips.linearVelocity.magnitude : rb.linearVelocity.magnitude):0.0}, out cold {(health != null && health.IsDown)}";
+
         /// <summary>Test hook: walk as if WASD gave `move` (x right, y forward) for `seconds`.</summary>
         public void DebugMove(Vector2 move, float seconds)
         {
@@ -600,10 +597,10 @@ namespace Roadkill
         }
 
         /// <summary>Test hook: turn the view toward a point, as the mouse would (no teleport).</summary>
-        public void DebugLook(Vector3 point)
+        public void DebugLook(Vector3 point, float maxTurnDegrees = 360f)
         {
             Vector3 direction = point - cameraPivot.position;
-            yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            yaw = Mathf.MoveTowardsAngle(yaw, Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg, maxTurnDegrees);
             pitch = Mathf.Clamp(-Mathf.Atan2(direction.y, new Vector2(direction.x, direction.z).magnitude) * Mathf.Rad2Deg, -85f, 85f);
         }
 

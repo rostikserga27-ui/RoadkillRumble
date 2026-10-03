@@ -14,7 +14,7 @@ namespace Roadkill
     /// what hurts):
     ///   1. The owner winds up and strikes at once on its own copy (no input lag) and tells the others
     ///      (WindUpRpc, relayed by the server) and the server (StrikeRpc).
-    ///   2. The server checks the strike (cooldown, stamina, charge against the time actually held),
+    ///   2. The server checks the strike (cooldown, charge against the time actually held),
     ///      remembers it and has everyone else play it on their copy of the body (PlayStrikeRpc).
     ///   3. The owner's copy is the one that counts for hits: what you see your fist touch is what you hit.
     ///      Its contacts become hit claims (HitClaimRpc) and the owner predicts the feel (hit-stop, camera
@@ -61,14 +61,11 @@ namespace Roadkill
         public PlayerNet Player { get; private set; }
         public PunchArmDriver Driver { get; private set; }
         /// <summary>0..1, valid on the owner.</summary>
-        public float Stamina01 => config != null ? stamina / config.maxStamina : 1f;
         /// <summary>The charge of a fist being wound up (owner), for the HUD.</summary>
         public float Charge { get; private set; }
         /// <summary>Owner: a player, prop or NPC under the crosshair within punching range.</summary>
         public bool TargetInRange { get; private set; }
         public string TargetName { get; private set; } = "";
-        /// <summary>Tried to punch without the stamina for it, just now.</summary>
-        public bool Tired => Time.time - tiredTime < 0.8f;
 
         static readonly List<PlayerFists> All = new List<PlayerFists>();
 
@@ -83,8 +80,7 @@ namespace Roadkill
         bool debugPress;           // test hook: a press of F, then F held for debugHold seconds
         float debugHold, debugUntil = -99f;
         int sequence;
-        float stamina;
-        float lastSpend = -99f, lastStrike = -99f, tiredTime = -99f;
+        float lastStrike = -99f;
         bool cursorWasLocked;      // the click that locks the cursor is not a punch
         Vector3 targetPoint;
         // Hits the owner already played locally, so the server's echo does not play them twice.
@@ -93,7 +89,7 @@ namespace Roadkill
         // Server
         readonly Dictionary<int, StrikeRecord> strikes = new Dictionary<int, StrikeRecord>();
         readonly float[] serverWindUp = { -99f, -99f };
-        float serverStamina, serverStaminaTime, serverLastSpend = -99f, serverLastStrike = -99f;
+        float serverLastStrike = -99f;
         int serverSequence;
 
         void Awake()
@@ -106,8 +102,6 @@ namespace Roadkill
         public override void OnNetworkSpawn()
         {
             config = PunchConfig.Current;
-            stamina = serverStamina = config.maxStamina;
-            serverStaminaTime = Time.time;
             if (Player.body != null)
             {
                 Driver = Player.body.gameObject.AddComponent<PunchArmDriver>();
@@ -140,10 +134,17 @@ namespace Roadkill
         {
             if (puncher == other || puncher.Driver == null) return;
             var capsule = other.GetComponent<CapsuleCollider>();
-            if (capsule == null) return;
             for (int hand = 0; hand < 2; hand++)
-                foreach (var c in puncher.Driver.FistColliders(hand))
-                    Physics.IgnoreCollision(c, capsule, true);
+            foreach (var c in puncher.Driver.FistColliders(hand))
+            {
+                if (capsule != null) Physics.IgnoreCollision(c, capsule, true);
+                // Nor do fists catch on the other player's arms, which are held out in front of him: punches
+                // get through to the body and head instead of every one landing on a forearm.
+                if (other.Driver == null) continue;
+                for (int theirs = 0; theirs < 2; theirs++)
+                    foreach (var o in other.Driver.FistColliders(theirs))
+                        Physics.IgnoreCollision(c, o, true);
+            }
         }
 
         // =========================================================================== owner
@@ -152,7 +153,6 @@ namespace Roadkill
         {
             if (!IsSpawned || !IsOwner || Driver == null) return;
             float dt = Time.deltaTime;
-            RegenerateStamina(ref stamina, ref lastSpend, Time.time - dt, Time.time);
 
             var fallCamera = Player.FallCamera;
             bool testing = Time.time < debugUntil;
@@ -184,8 +184,7 @@ namespace Roadkill
                 {
                     case PunchArmDriver.Phase.WindUp:
                         if (!punchHeld) fist.Released = true;
-                        float affordable = Mathf.Clamp01(Mathf.InverseLerp(config.jabCost, config.haymakerCost, stamina));
-                        fist.Charge = Mathf.Min(affordable, Mathf.Clamp01((fist.Time - config.minWindUpSeconds) / Mathf.Max(0.01f, config.chargeSeconds)));
+                        fist.Charge = Mathf.Clamp01((fist.Time - config.minWindUpSeconds) / Mathf.Max(0.01f, config.chargeSeconds));
                         Driver.SetCharge(fist.Index, fist.Charge);
                         Charge = Mathf.Max(Charge, fist.Charge);
                         bool ready = fist.Time >= config.minWindUpSeconds && Time.time - lastStrike >= config.cooldownSeconds;
@@ -217,11 +216,6 @@ namespace Roadkill
 
         void StartWindUp()
         {
-            if (stamina < config.jabCost)
-            {
-                tiredTime = Time.time;
-                return;
-            }
             foreach (int candidate in new[] { nextHand, 1 - nextHand })
             {
                 var fist = fists[candidate];
@@ -241,8 +235,7 @@ namespace Roadkill
 
         void Strike(Fist fist)
         {
-            stamina = Mathf.Max(0f, stamina - config.Cost(fist.Charge));
-            lastSpend = lastStrike = Time.time;
+            lastStrike = Time.time;
             fist.Sequence = ++sequence;
             fist.StrikeSeconds = config.StrikeSeconds(fist.Charge) + config.StepIn(fist.Charge);
             fist.Hit.Clear();
@@ -350,8 +343,9 @@ namespace Roadkill
                     case PunchArmDriver.Phase.WindUp:
                     {
                         float k = Mathf.SmoothStep(0f, 1f, fist.Time / Mathf.Max(0.01f, config.minWindUpSeconds));
-                        offset = Vector3.Lerp(fist.PhaseStartOffset, new Vector3(-side * 0.06f, 0.06f, -0.08f), k)
-                                 + new Vector3(0f, 0.03f, -0.12f) * fist.Charge;
+                        // Back and out to the side, never toward the face.
+                        offset = Vector3.Lerp(fist.PhaseStartOffset, new Vector3(-side * 0.03f, 0.05f, -0.05f), k)
+                                 + new Vector3(side * 0.05f, 0.02f, -0.08f) * fist.Charge;
                         curl = -15f - 25f * fist.Charge;
                         break;
                     }
@@ -379,12 +373,6 @@ namespace Roadkill
                 fist.PoseCurl = curl;
                 hands.SetFistPose(fist.Index, offset, curl, fist.Phase != PunchArmDriver.Phase.Idle);
             }
-        }
-
-        void RegenerateStamina(ref float value, ref float spent, float from, float to)
-        {
-            float start = Mathf.Max(from, spent + config.staminaRegenDelay);
-            if (to > start) value = Mathf.Min(config.maxStamina, value + (to - start) * config.staminaRegenPerSecond);
         }
 
         // ---- the owner's fist touched something ------------------------------------------------------
@@ -490,17 +478,12 @@ namespace Roadkill
             if (hand < 0 || hand > 1 || seq <= serverSequence) return;
             serverSequence = seq;
             float now = Time.time;
-            RegenerateStamina(ref serverStamina, ref serverLastSpend, serverStaminaTime, now);
-            serverStaminaTime = now;
 
             // Allow for jitter between the owner's clock and ours, not for spam.
             if (now - serverLastStrike < config.cooldownSeconds * 0.6f) return;
             float held = serverWindUp[hand] < 0f ? 0f : now - serverWindUp[hand] + 0.25f;
             charge = Mathf.Min(Mathf.Clamp01(charge), Mathf.Clamp01((held - config.minWindUpSeconds) / Mathf.Max(0.01f, config.chargeSeconds)));
-            float cost = config.Cost(charge);
-            if (serverStamina + 15f < cost) return;
-            serverStamina = Mathf.Max(0f, serverStamina - cost);
-            serverLastSpend = serverLastStrike = now;
+            serverLastStrike = now;
             serverWindUp[hand] = -99f;
 
             strikes[seq] = new StrikeRecord { Time = now, Live = config.LiveSeconds(charge), Charge = charge, Hand = hand };

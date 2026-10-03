@@ -60,15 +60,20 @@ namespace Roadkill
         {
             var body = player.body;
             if (body == null || !body.IsSimulated || body.IsPuppet) return;   // a puppet replays its owner's pose
+            var c = PunchConfig.Current;
             float total = impulse.magnitude;
             if (part >= 0 && part < body.PartCount && total > 0f)
             {
                 var bone = body.PartBody(part);
                 if (!bone.isKinematic)
                 {
-                    float onBone = Mathf.Min(total, bone.mass * PunchConfig.Current.maxBoneKick);
-                    Vector3 direction = impulse / total;
-                    bone.AddForceAtPosition(direction * onBone, point, ForceMode.Impulse);
+                    // Mostly sideways, along the blow: a knock back, not a launch.
+                    Vector3 flat = Vector3.ProjectOnPlane(impulse, Vector3.up);
+                    Vector3 direction = flat.sqrMagnitude > 0.0001f ? (flat.normalized + Vector3.up * c.hitLift).normalized : impulse / total;
+                    float onBone = Mathf.Min(total, bone.mass * c.maxBoneKick);
+                    // Mostly through the bone's centre (a push), a little at the contact (a turn of the head, not a spin).
+                    bone.AddForce(direction * (onBone * (1f - c.hitTorqueShare)), ForceMode.Impulse);
+                    bone.AddForceAtPosition(direction * (onBone * c.hitTorqueShare), point, ForceMode.Impulse);
                     if (total > onBone) body.AddVelocity(direction * ((total - onBone) / Mathf.Max(1f, body.TotalMass)));
                 }
             }

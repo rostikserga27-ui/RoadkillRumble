@@ -132,6 +132,26 @@ namespace Roadkill
 
         void SpawnWorld()
         {
+            SpawnProps();
+            var rules = Resources.Load<GameObject>($"{ResourceFolder}/{PlaygroundRules.PrefabName}");
+            if (rules != null) Instantiate(rules).GetComponent<NetworkObject>().Spawn(true);
+            else Debug.LogWarning("Roadkill: no PlaygroundRules network prefab; run Roadkill > Rebuild Network Prefabs.");
+        }
+
+        /// <summary>Server: put every prop back where the level starts it (dispensers refill on their own).</summary>
+        public void ResetProps()
+        {
+            if (manager == null || !manager.IsServer) return;
+            foreach (var hands in FindObjectsByType<HandsController>(FindObjectsInactive.Exclude)) hands.ServerReleaseAll();
+            var props = new System.Collections.Generic.List<NetworkObject>();
+            foreach (var spawned in manager.SpawnManager.SpawnedObjectsList)
+                if (spawned.GetComponent<PhysicsProp>() != null) props.Add(spawned);
+            foreach (var prop in props) prop.Despawn(true);
+            SpawnProps();
+        }
+
+        void SpawnProps()
+        {
             foreach (var placement in PropLayout.Greybox)
             {
                 var prefab = Resources.Load<GameObject>($"{ResourceFolder}/{placement.Prefab}");

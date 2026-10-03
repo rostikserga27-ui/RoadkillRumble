@@ -35,6 +35,10 @@ namespace Roadkill
             new Color(0.35f, 0.80f, 0.25f),   // green
             new Color(0.95f, 0.80f, 0.15f),   // yellow
         };
+        static readonly string[] PlayerColorNames = { "Orange", "Blue", "Green", "Yellow" };
+
+        /// <summary>What to call a player in messages: their colour.</summary>
+        public static string NameOf(ulong clientId) => PlayerColorNames[(int)(clientId % (ulong)PlayerColorNames.Length)];
 
         // Written by the owner: is this player down right now? Drives everyone else's ragdoll.
         NetworkVariable<bool> ragdolled = new NetworkVariable<bool>(false,
@@ -143,5 +147,9 @@ namespace Roadkill
             Motor.EnterRagdoll(seconds, kick);
             Health.Damage(damage, "struck");
         }
+
+        /// <summary>Server only: move this player (their own machine places them; see PlaygroundRules' gather).</summary>
+        [Rpc(SendTo.Owner)]
+        public void TeleportRpc(Vector3 position, float yaw) => Motor.TeleportTo(position, Quaternion.Euler(0f, yaw, 0f));
     }
 }

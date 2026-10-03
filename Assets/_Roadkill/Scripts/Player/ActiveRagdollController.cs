@@ -327,7 +327,7 @@ namespace Roadkill
             foreach (var p in parts)
             {
                 if (p.joint == null) continue;
-                float k = p.strength * weight * soft;
+                float k = p.strength * weight * soft * PlaygroundRules.JointScale;
                 if (p.role == Role.Head) k *= Mathf.Lerp(1f, 0.2f, headFloppiness);
                 if (p.role == Role.UpperArm || p.role == Role.LowerArm || p.role == Role.Hand)
                     k *= Mathf.Lerp(1f, 0.25f, reachWeight[p.side < 0f ? 0 : 1]);   // let the reach pull the arm
@@ -343,7 +343,7 @@ namespace Roadkill
         /// <summary>Hips chase the capsule; hips and chest are righted toward the capsule's facing.</summary>
         void Balance()
         {
-            float s = weight * balanceStrength * (staggerTimer > 0f ? 0.5f : 1f);
+            float s = weight * balanceStrength * PlaygroundRules.BalanceScale * (staggerTimer > 0f ? 0.5f : 1f);
             float walk = Mathf.Clamp01(speed / fullStrideSpeed);
             float t = Time.time;
 
@@ -357,7 +357,9 @@ namespace Roadkill
             Vector3 acceleration = (target - body.position) * hipSpring + (rootVelocity - body.linearVelocity) * hipDamping;
             acceleration = Vector3.ClampMagnitude(acceleration, maxHipAcceleration);
             Vector3 lift = -Physics.gravity * gravityMultiplier;   // carries the whole body
-            body.AddForce((acceleration + lift) * (totalMass * s), ForceMode.Force);
+            // Leading (going down), the capsule trails the hips: chasing it would brake a fall or a flight.
+            if (BodyLeads) acceleration = Vector3.zero;
+            else body.AddForce((acceleration + lift) * (totalMass * s), ForceMode.Force);
 
             // Lean into the direction of travel (and of acceleration), back while winding up a throw,
             // forward as it lets go.
@@ -413,7 +415,7 @@ namespace Roadkill
                 // The thigh swings forward while its angle falls: that is the leg's swing phase (knee folds, foot lifts).
                 float swing = Mathf.Max(0f, -legSign * c);
                 float thrash = Mathf.Sin(t * 13f + p.seed) * flail * air;
-                float wob = wobbleAmount * 6f * idle;
+                float wob = wobbleAmount * PlaygroundRules.WobbleScale * 6f * idle;
                 float nx = (Mathf.PerlinNoise(t * 0.8f, p.seed) - 0.5f) * 2f * wob;
                 float nz = (Mathf.PerlinNoise(p.seed, t * 0.8f) - 0.5f) * 2f * wob;
                 // Positive angles about the character's right swing a limb backward. The stride swings about

@@ -9,6 +9,8 @@ namespace Roadkill
     /// Down, the lead flips: the limp body falls freely and the capsule (collision-free) trails its hips,
     /// so the network carries where the body lies and nothing rolls like a capsule. Without a body the
     /// capsule itself topples, as before. The possum camera pulls back to show the fall.
+    /// Playground surfaces (PlaygroundSurface) change the ground: grip, a moving floor that carries you,
+    /// trampolines and soft landings; PlaygroundRules scales jump, speed and the fall threshold.
     /// </summary>
     [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
     public class PlayerMotor : MonoBehaviour
@@ -78,6 +80,11 @@ namespace Roadkill
         Quaternion standUpFrom;
         Vector3 spawnPosition;
         Quaternion spawnRotation;
+        PlaygroundSurface groundSurface;
+        Vector3 groundPoint;
+        float bounceSpeed;        // > 0: a trampoline landing to bounce off on the next step
+        bool launched;            // thrown by a pad or trampoline: little air control until landing
+        float launchGrace;
 
         void Start()
         {
@@ -195,20 +202,51 @@ namespace Roadkill
 
             float speed = IsCrouching ? crouchSpeed : IsSprinting ? sprintSpeed : walkSpeed;
             if (hands != null) speed *= hands.SpeedMultiplier;
+            speed *= PlaygroundRules.SpeedScale;
             Stamina = IsSprinting
                 ? Mathf.Max(0f, Stamina - dt)
                 : Mathf.Min(sprintStaminaSeconds, Stamina + staminaRegenPerSecond * dt);
 
+            launchGrace -= dt;
+            if (launched && IsGrounded && launchGrace <= 0f) launched = false;
+
+            // Steering is relative to the floor: a moving floor carries you, a slippery one barely lets you steer.
+            float grip = Mathf.Min(groundSurface != null ? groundSurface.grip : 1f, PlaygroundRules.MaxGrip);
+            Vector3 carry = IsGrounded && groundSurface != null ? Vector3.ProjectOnPlane(groundSurface.VelocityAt(groundPoint), Vector3.up) : Vector3.zero;
             Vector3 wish = Quaternion.Euler(0f, yaw, 0f) * new Vector3(input.x, 0f, input.y) * speed;
             Vector3 v = rb.linearVelocity;
-            float accel = IsGrounded ? groundAcceleration : airAcceleration;
-            Vector3 horizontal = Vector3.MoveTowards(new Vector3(v.x, 0f, v.z), wish, accel * dt);
+
+            // Hitting grippy ground much faster than legs can run (flung off the merry-go-round, off the
+            // ice slide): trip and tumble instead of stopping dead.
+            Vector3 slip = new Vector3(v.x, 0f, v.z) - carry;
+            if (IsGrounded && grip >= 0.5f && launchGrace <= 0f && slip.magnitude > sprintSpeed * PlaygroundRules.SpeedScale + 3f)
+            {
+                EnterRagdoll(1.5f, slip.normalized * 0.5f);
+                return;
+            }
+            // In the air you steer, but extra momentum (a launch, a fling off the merry-go-round) is kept.
+            bool flying = launched || new Vector2(v.x, v.z).magnitude > speed + 1f;
+            float accel = IsGrounded ? groundAcceleration * Mathf.Max(0.05f, grip) : airAcceleration * (flying ? 0.25f : 1f);
+            Vector3 horizontal = carry + Vector3.MoveTowards(new Vector3(v.x, 0f, v.z) - carry, wish, accel * dt);
 
             float vertical = v.y;
-            if (jumpQueued && IsGrounded) vertical = Mathf.Sqrt(2f * -Physics.gravity.y * jumpHeight);
+            float g = -Physics.gravity.y;
+            if (jumpQueued && IsGrounded) vertical = Mathf.Sqrt(2f * g * jumpHeight * PlaygroundRules.JumpScale);
             jumpQueued = false;
+            if (bounceSpeed > 0f)
+            {
+                // Holding Space on landing bounces higher. Heights stay the same in moon gravity.
+                vertical = bounceSpeed * (RkInput.JumpHeld ? 1.2f : 1f);
+                bounceSpeed = 0f;
+                launched = true;
+                launchGrace = 0.2f;
+            }
 
-            rb.linearVelocity = new Vector3(horizontal.x, vertical, horizontal.z);
+            Vector3 velocity = new Vector3(horizontal.x, vertical, horizontal.z);
+            // Thrown up hard (trampoline, super jump): the body comes along, unless it already bounced itself.
+            if (body != null && body.enabled && (velocity - v).y > 6f)
+                body.AddVelocity(Vector3.up * Mathf.Max(0f, velocity.y - body.Hips.linearVelocity.y));
+            rb.linearVelocity = velocity;
         }
 
         bool CheckGround()
@@ -222,8 +260,11 @@ namespace Roadkill
                 if (IsOwnBody(hit.collider)) continue;
                 if (hands != null && hands.IsHolding(hit.rigidbody)) continue;
                 if (hit.distance > 0f && hit.normal.y < 0.5f) continue;
+                groundSurface = PlaygroundSurface.Of(hit.collider);
+                groundPoint = hit.distance > 0f ? hit.point : transform.position;
                 return true;
             }
+            groundSurface = null;
             return false;
         }
 
@@ -270,11 +311,24 @@ namespace Roadkill
             Vector3 normal = collision.contactCount > 0 ? collision.GetContact(0).normal : Vector3.up;
             float impactSpeed = Mathf.Abs(Vector3.Dot(collision.relativeVelocity, normal));
 
+            var surface = PlaygroundSurface.Of(collision.collider);
+            if (surface != null && state == State.Normal && normal.y > 0.5f)
+            {
+                if (surface.bounceSpeed > 0f)
+                {
+                    // Trampoline: at least its own bounce, more if you came down fast, but never runaway.
+                    float scale = Mathf.Sqrt(-Physics.gravity.y / 9.81f);
+                    bounceSpeed = Mathf.Min(Mathf.Max(surface.bounceSpeed * scale, impactSpeed * 0.85f), surface.bounceSpeed * scale * 1.3f);
+                    return;
+                }
+                if (surface.softLanding) return;
+            }
+
             // Landing hard on anything (props are kinematic copies on clients): a fall.
             // Getting hit by a moving prop is decided by the server, see ImpactReporter.
             if (other != null && !other.isKinematic) return;
             float dropHeight = impactSpeed * impactSpeed / (2f * -Physics.gravity.y);
-            if (dropHeight >= fallRagdollHeight && normal.y > 0.5f)
+            if (dropHeight >= fallRagdollHeight * PlaygroundRules.FallHeightScale && normal.y > 0.5f)
             {
                 EnterRagdoll(fallDowntime, Vector3.zero);
                 if (dropHeight > fallDamageStartHeight && health != null)
@@ -391,17 +445,35 @@ namespace Roadkill
             rb.detectCollisions = true;
         }
 
-        public void Respawn()
+        public void Respawn() => TeleportTo(spawnPosition, spawnRotation);
+
+        /// <summary>Throw the standing player through the air (jump pads): keeps the speed, little air control until landing.</summary>
+        public void Launch(Vector3 velocity)
         {
+            if (rb == null || state != State.Normal) return;
+            Vector3 change = velocity - rb.linearVelocity;
+            rb.linearVelocity = velocity;
+            if (body != null && body.enabled) body.AddVelocity(change);
+            launched = true;
+            launchGrace = 0.2f;
+            jumpQueued = false;
+        }
+
+        /// <summary>Put the player somewhere, standing, with empty hands (respawn, gathering).</summary>
+        public void TeleportTo(Vector3 position, Quaternion rotation)
+        {
+            if (rb == null) return;
             CameraResetVersion++;
             if (hands != null) hands.ReleaseAll();
-            transform.SetPositionAndRotation(spawnPosition, spawnRotation);
-            rb.position = spawnPosition;
-            rb.rotation = spawnRotation;
+            transform.SetPositionAndRotation(position, rotation);
+            rb.position = position;
+            rb.rotation = rotation;
             LeaveBody();
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
-            yaw = spawnRotation.eulerAngles.y;
+            launched = false;
+            bounceSpeed = 0f;
+            yaw = rotation.eulerAngles.y;
             pitch = 0f;
             cameraPivot.localPosition = new Vector3(0f, standingEyeHeight, 0f);
             cameraPivot.localRotation = Quaternion.identity;

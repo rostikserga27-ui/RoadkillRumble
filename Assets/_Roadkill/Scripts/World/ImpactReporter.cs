@@ -34,7 +34,8 @@ namespace Roadkill
         void OnCollisionEnter(Collision collision)
         {
             var network = NetworkManager.Singleton;
-            if (network == null || !network.IsServer || body.isKinematic || body.mass <= massThreshold) return;
+            bool glassJaw = PlaygroundRules.Has(PlaygroundRules.Rule.GlassJaw);
+            if (network == null || !network.IsServer || body.isKinematic || body.mass <= (glassJaw ? 1f : massThreshold)) return;
 
             var player = collision.collider.GetComponentInParent<PlayerNet>();
             if (player == null)
@@ -51,7 +52,7 @@ namespace Roadkill
             var contact = collision.GetContact(0);
             Vector3 contactVelocity = lastVelocity + Vector3.Cross(lastAngularVelocity, contact.point - body.worldCenterOfMass);
             float closing = Mathf.Abs(Vector3.Dot(contactVelocity, contact.normal));
-            if (closing <= speedThreshold) return;
+            if (closing <= (glassJaw ? Mathf.Min(speedThreshold, 2.5f) : speedThreshold)) return;
 
             Vector3 flat = Vector3.ProjectOnPlane(contactVelocity, Vector3.up);
             Vector3 kick = (flat.sqrMagnitude > 0.0001f ? flat.normalized : Vector3.zero) + Vector3.up * 0.3f;

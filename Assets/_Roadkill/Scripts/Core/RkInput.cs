@@ -30,6 +30,7 @@ namespace Roadkill
         // Pixel delta scaled to match the legacy "Mouse X/Y" axes (0.1 per pixel).
         public static Vector2 Look => Ms != null ? Ms.delta.ReadValue() * 0.1f : Vector2.zero;
         public static bool JumpPressed => Kb != null && Kb.spaceKey.wasPressedThisFrame;
+        public static bool JumpHeld => Kb != null && Kb.spaceKey.isPressed;
         public static bool Sprint => Kb != null && Kb.leftShiftKey.isPressed;
         public static bool Crouch => Kb != null && Kb.leftCtrlKey.isPressed;
         public static bool Possum => Kb != null && Kb.cKey.isPressed;
@@ -45,6 +46,7 @@ namespace Roadkill
         public static bool VoiceModePressed => Kb != null && Kb.f2Key.wasPressedThisFrame;
         public static bool LoopbackPressed => Kb != null && Kb.f3Key.wasPressedThisFrame;
         public static bool InvitePressed => Kb != null && Kb.f4Key.wasPressedThisFrame;
+        public static bool RulesPanelPressed => Kb != null && Kb.f9Key.wasPressedThisFrame;
         // Ragdoll test scene debug keys.
         public static bool RagdollTogglePressed => Kb != null && Kb.f5Key.wasPressedThisFrame;
         public static bool LaunchPressed => Kb != null && Kb.f6Key.wasPressedThisFrame;
@@ -63,6 +65,7 @@ namespace Roadkill
 
         public static Vector2 Look => new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
         public static bool JumpPressed => Input.GetKeyDown(KeyCode.Space);
+        public static bool JumpHeld => Input.GetKey(KeyCode.Space);
         public static bool Sprint => Input.GetKey(KeyCode.LeftShift);
         public static bool Crouch => Input.GetKey(KeyCode.LeftControl);
         public static bool Possum => Input.GetKey(KeyCode.C);
@@ -78,6 +81,7 @@ namespace Roadkill
         public static bool VoiceModePressed => Input.GetKeyDown(KeyCode.F2);
         public static bool LoopbackPressed => Input.GetKeyDown(KeyCode.F3);
         public static bool InvitePressed => Input.GetKeyDown(KeyCode.F4);
+        public static bool RulesPanelPressed => Input.GetKeyDown(KeyCode.F9);
         public static bool RagdollTogglePressed => Input.GetKeyDown(KeyCode.F5);
         public static bool LaunchPressed => Input.GetKeyDown(KeyCode.F6);
         public static bool ResetPosePressed => Input.GetKeyDown(KeyCode.F7);

@@ -1,0 +1,2182 @@
+[
+  {
+    "name": "Tree_Oak_01",
+    "category": "Trees",
+    "triangles": 414,
+    "budget": 1200,
+    "dimensions_m": [
+      2.54,
+      1.961,
+      4.634
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Oak_02",
+    "category": "Trees",
+    "triangles": 382,
+    "budget": 1200,
+    "dimensions_m": [
+      2.832,
+      2.895,
+      5.793
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Oak_03",
+    "category": "Trees",
+    "triangles": 466,
+    "budget": 1200,
+    "dimensions_m": [
+      4.041,
+      3.357,
+      6.952
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Oak_04",
+    "category": "Trees",
+    "triangles": 416,
+    "budget": 1200,
+    "dimensions_m": [
+      3.351,
+      2.144,
+      5.33
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Pine_01",
+    "category": "Trees",
+    "triangles": 154,
+    "budget": 1200,
+    "dimensions_m": [
+      2.095,
+      2.127,
+      6.0
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Pine_02",
+    "category": "Trees",
+    "triangles": 154,
+    "budget": 1200,
+    "dimensions_m": [
+      2.619,
+      2.659,
+      7.5
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Pine_03",
+    "category": "Trees",
+    "triangles": 154,
+    "budget": 1200,
+    "dimensions_m": [
+      3.142,
+      3.191,
+      9.2
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Pine_04",
+    "category": "Trees",
+    "triangles": 154,
+    "budget": 1200,
+    "dimensions_m": [
+      2.409,
+      2.446,
+      5.0
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Birch_01",
+    "category": "Trees",
+    "triangles": 264,
+    "budget": 1200,
+    "dimensions_m": [
+      1.504,
+      1.24,
+      5.107
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Birch_02",
+    "category": "Trees",
+    "triangles": 238,
+    "budget": 1200,
+    "dimensions_m": [
+      1.932,
+      1.572,
+      6.638
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Birch_03",
+    "category": "Trees",
+    "triangles": 242,
+    "budget": 1200,
+    "dimensions_m": [
+      2.354,
+      1.937,
+      7.762
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Birch_04",
+    "category": "Trees",
+    "triangles": 248,
+    "budget": 1200,
+    "dimensions_m": [
+      1.945,
+      1.448,
+      4.397
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Dead_01",
+    "category": "Trees",
+    "triangles": 300,
+    "budget": 1200,
+    "dimensions_m": [
+      1.941,
+      1.199,
+      4.022
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Dead_02",
+    "category": "Trees",
+    "triangles": 304,
+    "budget": 1200,
+    "dimensions_m": [
+      2.424,
+      1.499,
+      5.32
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Dead_03",
+    "category": "Trees",
+    "triangles": 296,
+    "budget": 1200,
+    "dimensions_m": [
+      2.907,
+      1.799,
+      6.818
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Dead_04",
+    "category": "Trees",
+    "triangles": 306,
+    "budget": 1200,
+    "dimensions_m": [
+      2.231,
+      1.379,
+      3.726
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Sapling_01",
+    "category": "Trees",
+    "triangles": 146,
+    "budget": 1200,
+    "dimensions_m": [
+      1.008,
+      0.853,
+      3.093
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Sapling_02",
+    "category": "Trees",
+    "triangles": 146,
+    "budget": 1200,
+    "dimensions_m": [
+      1.268,
+      1.081,
+      3.71
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Sapling_03",
+    "category": "Trees",
+    "triangles": 146,
+    "budget": 1200,
+    "dimensions_m": [
+      1.556,
+      1.331,
+      4.122
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Sapling_04",
+    "category": "Trees",
+    "triangles": 146,
+    "budget": 1200,
+    "dimensions_m": [
+      1.212,
+      0.995,
+      3.402
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Stump_01",
+    "category": "Trees",
+    "triangles": 120,
+    "budget": 300,
+    "dimensions_m": [
+      1.006,
+      1.006,
+      0.45
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Stump_02",
+    "category": "Trees",
+    "triangles": 122,
+    "budget": 300,
+    "dimensions_m": [
+      1.31,
+      1.31,
+      0.65
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Stump_03",
+    "category": "Trees",
+    "triangles": 114,
+    "budget": 300,
+    "dimensions_m": [
+      1.553,
+      1.553,
+      0.72
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Tree_Stump_04",
+    "category": "Trees",
+    "triangles": 112,
+    "budget": 300,
+    "dimensions_m": [
+      0.885,
+      0.885,
+      0.35
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Whole_01",
+    "category": "Fallen_Wood",
+    "triangles": 52,
+    "budget": 300,
+    "dimensions_m": [
+      2.4,
+      0.752,
+      0.52
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Whole_02",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      3.2,
+      0.792,
+      0.6
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Whole_03",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      1.8,
+      0.832,
+      0.68
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Broken_01",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      2.529,
+      0.752,
+      0.52
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Broken_02",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      3.293,
+      0.792,
+      0.6
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Broken_03",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      1.833,
+      0.832,
+      0.68
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Hollow_01",
+    "category": "Fallen_Wood",
+    "triangles": 64,
+    "budget": 300,
+    "dimensions_m": [
+      2.4,
+      0.52,
+      0.52
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Hollow_02",
+    "category": "Fallen_Wood",
+    "triangles": 64,
+    "budget": 300,
+    "dimensions_m": [
+      3.2,
+      0.6,
+      0.6
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Hollow_03",
+    "category": "Fallen_Wood",
+    "triangles": 64,
+    "budget": 300,
+    "dimensions_m": [
+      1.8,
+      0.68,
+      0.68
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Mossy_01",
+    "category": "Fallen_Wood",
+    "triangles": 52,
+    "budget": 300,
+    "dimensions_m": [
+      2.4,
+      0.752,
+      0.52
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Mossy_02",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      3.2,
+      0.792,
+      0.6
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Log_Mossy_03",
+    "category": "Fallen_Wood",
+    "triangles": 50,
+    "budget": 300,
+    "dimensions_m": [
+      1.8,
+      0.832,
+      0.68
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Stick_01",
+    "category": "Fallen_Wood",
+    "triangles": 16,
+    "budget": 300,
+    "dimensions_m": [
+      0.75,
+      0.178,
+      0.089
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Stick_02",
+    "category": "Fallen_Wood",
+    "triangles": 16,
+    "budget": 300,
+    "dimensions_m": [
+      0.923,
+      0.344,
+      0.089
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Branch_01",
+    "category": "Fallen_Wood",
+    "triangles": 56,
+    "budget": 300,
+    "dimensions_m": [
+      0.75,
+      0.318,
+      0.128
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Branch_02",
+    "category": "Fallen_Wood",
+    "triangles": 56,
+    "budget": 300,
+    "dimensions_m": [
+      0.923,
+      0.385,
+      0.128
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Pile_01",
+    "category": "Fallen_Wood",
+    "triangles": 230,
+    "budget": 300,
+    "dimensions_m": [
+      0.75,
+      0.935,
+      0.089
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Pile_02",
+    "category": "Fallen_Wood",
+    "triangles": 210,
+    "budget": 300,
+    "dimensions_m": [
+      0.923,
+      1.124,
+      0.089
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Wood_Uprooted_01",
+    "category": "Fallen_Wood",
+    "triangles": 208,
+    "budget": 300,
+    "dimensions_m": [
+      3.282,
+      1.413,
+      0.893
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Pebble_01",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 150,
+    "dimensions_m": [
+      0.267,
+      0.225,
+      0.192
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Pebble_02",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 150,
+    "dimensions_m": [
+      0.321,
+      0.257,
+      0.24
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Pebble_03",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 150,
+    "dimensions_m": [
+      0.364,
+      0.309,
+      0.283
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Medium_01",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      0.864,
+      0.691,
+      0.672
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Medium_02",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.038,
+      0.789,
+      0.84
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Medium_03",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.179,
+      0.949,
+      0.991
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Boulder_01",
+    "category": "Rocks",
+    "triangles": 56,
+    "budget": 400,
+    "dimensions_m": [
+      1.794,
+      1.452,
+      1.68
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Boulder_02",
+    "category": "Rocks",
+    "triangles": 56,
+    "budget": 400,
+    "dimensions_m": [
+      2.153,
+      1.755,
+      2.1
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Boulder_03",
+    "category": "Rocks",
+    "triangles": 56,
+    "budget": 400,
+    "dimensions_m": [
+      2.649,
+      2.166,
+      2.478
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Flat_01",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.179,
+      0.932,
+      0.256
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Flat_02",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.415,
+      1.064,
+      0.32
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Flat_03",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.607,
+      1.281,
+      0.378
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Cluster_01",
+    "category": "Rocks",
+    "triangles": 186,
+    "budget": 400,
+    "dimensions_m": [
+      1.321,
+      0.621,
+      0.528
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Cluster_02",
+    "category": "Rocks",
+    "triangles": 182,
+    "budget": 400,
+    "dimensions_m": [
+      1.462,
+      0.714,
+      0.66
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_Cluster_03",
+    "category": "Rocks",
+    "triangles": 178,
+    "budget": 400,
+    "dimensions_m": [
+      1.559,
+      0.819,
+      0.779
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_MossyMedium_02",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.038,
+      0.789,
+      0.84
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_MossyBoulder_02",
+    "category": "Rocks",
+    "triangles": 56,
+    "budget": 400,
+    "dimensions_m": [
+      2.153,
+      1.755,
+      2.1
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_MossyFlat_02",
+    "category": "Rocks",
+    "triangles": 42,
+    "budget": 400,
+    "dimensions_m": [
+      1.415,
+      1.064,
+      0.32
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Rock_MossyCluster_02",
+    "category": "Rocks",
+    "triangles": 182,
+    "budget": 400,
+    "dimensions_m": [
+      1.462,
+      0.714,
+      0.66
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Round_01",
+    "category": "Plants",
+    "triangles": 64,
+    "budget": 300,
+    "dimensions_m": [
+      0.909,
+      0.803,
+      0.832
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Round_02",
+    "category": "Plants",
+    "triangles": 64,
+    "budget": 300,
+    "dimensions_m": [
+      1.169,
+      0.973,
+      1.04
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Leafy_01",
+    "category": "Plants",
+    "triangles": 122,
+    "budget": 300,
+    "dimensions_m": [
+      1.035,
+      1.027,
+      0.832
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Leafy_02",
+    "category": "Plants",
+    "triangles": 116,
+    "budget": 300,
+    "dimensions_m": [
+      1.293,
+      1.284,
+      1.04
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Berry_01",
+    "category": "Plants",
+    "triangles": 110,
+    "budget": 300,
+    "dimensions_m": [
+      0.909,
+      0.803,
+      0.832
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Bush_Berry_02",
+    "category": "Plants",
+    "triangles": 118,
+    "budget": 300,
+    "dimensions_m": [
+      1.169,
+      0.973,
+      1.04
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Fern_01",
+    "category": "Plants",
+    "triangles": 228,
+    "budget": 300,
+    "dimensions_m": [
+      0.737,
+      0.686,
+      0.505
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_ShortGrass_01",
+    "category": "Plants",
+    "triangles": 112,
+    "budget": 300,
+    "dimensions_m": [
+      0.651,
+      0.368,
+      0.371
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_TallGrass_01",
+    "category": "Plants",
+    "triangles": 96,
+    "budget": 300,
+    "dimensions_m": [
+      0.388,
+      0.391,
+      1.075
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Cattail_01",
+    "category": "Plants",
+    "triangles": 256,
+    "budget": 300,
+    "dimensions_m": [
+      0.615,
+      0.187,
+      1.291
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Ivy_01",
+    "category": "Plants",
+    "triangles": 72,
+    "budget": 300,
+    "dimensions_m": [
+      0.4,
+      0.126,
+      1.302
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Fern_02",
+    "category": "Plants",
+    "triangles": 228,
+    "budget": 300,
+    "dimensions_m": [
+      0.866,
+      0.807,
+      0.592
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_ShortGrass_02",
+    "category": "Plants",
+    "triangles": 112,
+    "budget": 300,
+    "dimensions_m": [
+      0.506,
+      0.457,
+      0.344
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_TallGrass_02",
+    "category": "Plants",
+    "triangles": 96,
+    "budget": 300,
+    "dimensions_m": [
+      0.527,
+      0.404,
+      1.001
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Cattail_02",
+    "category": "Plants",
+    "triangles": 256,
+    "budget": 300,
+    "dimensions_m": [
+      0.615,
+      0.187,
+      1.371
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Plant_Ivy_02",
+    "category": "Plants",
+    "triangles": 72,
+    "budget": 300,
+    "dimensions_m": [
+      0.4,
+      0.126,
+      1.302
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Daisy_Single_01",
+    "category": "Flowers",
+    "triangles": 76,
+    "budget": 150,
+    "dimensions_m": [
+      0.163,
+      0.171,
+      0.294
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Daisy_Cluster_01",
+    "category": "Flowers",
+    "triangles": 120,
+    "budget": 150,
+    "dimensions_m": [
+      0.32,
+      0.191,
+      0.334
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Tulip_Single_01",
+    "category": "Flowers",
+    "triangles": 70,
+    "budget": 150,
+    "dimensions_m": [
+      0.124,
+      0.127,
+      0.36
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Tulip_Cluster_01",
+    "category": "Flowers",
+    "triangles": 100,
+    "budget": 150,
+    "dimensions_m": [
+      0.258,
+      0.135,
+      0.4
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_WildPink_Single_01",
+    "category": "Flowers",
+    "triangles": 76,
+    "budget": 150,
+    "dimensions_m": [
+      0.163,
+      0.171,
+      0.294
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_WildPink_Cluster_01",
+    "category": "Flowers",
+    "triangles": 120,
+    "budget": 150,
+    "dimensions_m": [
+      0.32,
+      0.191,
+      0.334
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Bluebell_Single_01",
+    "category": "Flowers",
+    "triangles": 70,
+    "budget": 150,
+    "dimensions_m": [
+      0.124,
+      0.127,
+      0.36
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Bluebell_Cluster_01",
+    "category": "Flowers",
+    "triangles": 100,
+    "budget": 150,
+    "dimensions_m": [
+      0.258,
+      0.135,
+      0.4
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Buttercup_Single_01",
+    "category": "Flowers",
+    "triangles": 76,
+    "budget": 150,
+    "dimensions_m": [
+      0.163,
+      0.171,
+      0.294
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Flower_Buttercup_Cluster_01",
+    "category": "Flowers",
+    "triangles": 120,
+    "budget": 150,
+    "dimensions_m": [
+      0.32,
+      0.191,
+      0.334
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Small_01",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.13,
+      0.113,
+      0.161
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Small_02",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.13,
+      0.113,
+      0.161
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Small_03",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.13,
+      0.113,
+      0.161
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Large_01",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.4,
+      0.346,
+      0.496
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Large_02",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.4,
+      0.346,
+      0.496
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Large_03",
+    "category": "Mushrooms",
+    "triangles": 72,
+    "budget": 150,
+    "dimensions_m": [
+      0.4,
+      0.346,
+      0.496
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Cluster_01",
+    "category": "Mushrooms",
+    "triangles": 150,
+    "budget": 150,
+    "dimensions_m": [
+      0.511,
+      0.293,
+      0.219
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Cluster_02",
+    "category": "Mushrooms",
+    "triangles": 150,
+    "budget": 150,
+    "dimensions_m": [
+      0.511,
+      0.293,
+      0.219
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Mushroom_Cluster_03",
+    "category": "Mushrooms",
+    "triangles": 150,
+    "budget": 150,
+    "dimensions_m": [
+      0.511,
+      0.293,
+      0.219
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_LilyPad_01",
+    "category": "Extras",
+    "triangles": 36,
+    "budget": 400,
+    "dimensions_m": [
+      0.527,
+      0.543,
+      0.022
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_LeafPile_01",
+    "category": "Extras",
+    "triangles": 96,
+    "budget": 400,
+    "dimensions_m": [
+      0.676,
+      0.751,
+      0.016
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Bridge_01",
+    "category": "Extras",
+    "triangles": 212,
+    "budget": 400,
+    "dimensions_m": [
+      1.25,
+      3.0,
+      0.49
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Dock_01",
+    "category": "Extras",
+    "triangles": 212,
+    "budget": 400,
+    "dimensions_m": [
+      1.65,
+      2.7,
+      0.49
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Planks_01",
+    "category": "Extras",
+    "triangles": 36,
+    "budget": 400,
+    "dimensions_m": [
+      1.343,
+      0.769,
+      0.08
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Fence_01",
+    "category": "Extras",
+    "triangles": 96,
+    "budget": 400,
+    "dimensions_m": [
+      1.95,
+      0.24,
+      1.1
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Signpost_01",
+    "category": "Extras",
+    "triangles": 62,
+    "budget": 400,
+    "dimensions_m": [
+      1.0,
+      0.355,
+      1.6
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Campfire_01",
+    "category": "Extras",
+    "triangles": 220,
+    "budget": 400,
+    "dimensions_m": [
+      1.151,
+      1.149,
+      0.2
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Tent_01",
+    "category": "Extras",
+    "triangles": 76,
+    "budget": 400,
+    "dimensions_m": [
+      1.8,
+      2.242,
+      1.282
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Buoy_01",
+    "category": "Extras",
+    "triangles": 74,
+    "budget": 400,
+    "dimensions_m": [
+      0.308,
+      0.309,
+      0.65
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Crate_01",
+    "category": "Extras",
+    "triangles": 44,
+    "budget": 400,
+    "dimensions_m": [
+      0.58,
+      0.575,
+      0.5
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  },
+  {
+    "name": "Extra_Bucket_01",
+    "category": "Extras",
+    "triangles": 154,
+    "budget": 400,
+    "dimensions_m": [
+      0.42,
+      0.42,
+      0.532
+    ],
+    "material": "M_ForestPalette",
+    "qa": {
+      "pass": true,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "degenerate_faces": 0,
+      "duplicate_vertices": 0,
+      "failures": []
+    }
+  }
+]

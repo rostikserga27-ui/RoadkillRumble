@@ -1,0 +1,31 @@
+fileFormatVersion: 2
+guid: b2c6a5c585e254b4925e0497de53c73e
+ModelImporter:
+  serializedVersion: 242
+  internalIDToNameTable: []
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: M_ForestPalette
+    second: {fileID: 2100000, guid: 9a15dc19de7a55d0a8e54b88ce68c2a8, type: 2}
+  materials:
+    materialImportMode: 1
+    materialName: 0
+    materialSearch: 1
+    materialLocation: 1
+  animations:
+    importAnimation: 0
+  meshes:
+    globalScale: 1
+    useFileScale: 1
+    addColliders: 0
+    isReadable: 0
+    importBlendShapes: 0
+  tangentSpace:
+    normalImportMode: 0
+    tangentImportMode: 2
+  animationType: 0
+  userData:
+  assetBundleName:
+  assetBundleVariant:

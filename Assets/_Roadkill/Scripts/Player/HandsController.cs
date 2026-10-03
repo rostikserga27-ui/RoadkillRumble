@@ -12,6 +12,8 @@ namespace Roadkill
     /// pulls the held prop toward it through a force-capped joint. Lifting power therefore adds up
     /// physically on the server: one hand lifts 20 kg, one player 40 kg, two players 80 kg, four 160 kg.
     /// Anything heavier sags and drags: the carry table's "needs more friends or a dolly" rule.
+    /// Everyone sees the throw too: the owner shares its charge and each throw, which the fisherman's
+    /// body (ActiveRagdollController, via PlayerNet) turns into a wind-up and a fling.
     /// </summary>
     public class HandsController : NetworkBehaviour
     {
@@ -26,6 +28,7 @@ namespace Roadkill
 
             // Owner side
             public Transform Visual;
+            public Quaternion VisualRestRotation;
             public bool WasPressed;
             public Vector3 LocalGrip;             // grip point in the held prop's space
 
@@ -69,11 +72,20 @@ namespace Roadkill
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         NetworkVariable<Quaternion> viewRotation = new NetworkVariable<Quaternion>(Quaternion.identity,
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        // Written by the owner: throw charge (0..255) and a count of throws, so other players see the wind-up and the fling.
+        NetworkVariable<byte> throwChargeShared = new NetworkVariable<byte>(0,
+            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        NetworkVariable<int> throwCount = new NetworkVariable<int>(0,
+            NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         public Hand Left { get; private set; }
         public Hand Right { get; private set; }
         public Quaternion ViewRotation => viewRotation.Value;
         public float ThrowCharge { get; private set; }
+        /// <summary>Throw charge as every peer sees it (exact on the owner, shared for the others).</summary>
+        public float VisibleThrowCharge => IsOwner ? ThrowCharge : throwChargeShared.Value / 255f;
+        /// <summary>Goes up by one on every throw, on every peer.</summary>
+        public int ThrowCount => throwCount.Value;
         public float SpeedMultiplier { get; private set; } = 1f;
         public bool CanSprint { get; private set; } = true;
         public float HeaviestHeldMass { get; private set; }
@@ -86,6 +98,7 @@ namespace Roadkill
 
         PlayerMotor motor;
         Collider[] ownColliders;
+        float throwPunch;   // first-person hands: seconds left of the throw's forward jab
 
         void Awake()
         {
@@ -134,6 +147,32 @@ namespace Roadkill
         public Rigidbody HeldBody(Hand hand) => BodyFor(HeldId(hand));
 
         public bool IsHolding(Hand hand) => HeldBody(hand) != null;
+
+        /// <summary>
+        /// Where a hand holds its object, for the body's arm to reach to: the exact grip on the owner, the
+        /// nearest point on the object to `from` (the shoulder) on other peers, which do not know the grip.
+        /// </summary>
+        public bool TryGetGrip(Hand hand, Vector3 from, out Vector3 point)
+        {
+            point = default;
+            var held = HeldBody(hand);
+            if (held == null) return false;
+            if (IsOwner)
+            {
+                point = held.transform.TransformPoint(hand.LocalGrip);
+                return true;
+            }
+            float best = float.MaxValue;
+            foreach (var c in held.GetComponentsInChildren<Collider>())
+            {
+                bool exact = !(c is MeshCollider mesh) || mesh.convex;
+                Vector3 p = exact ? c.ClosestPoint(from) : c.bounds.ClosestPoint(from);
+                float d = (p - from).sqrMagnitude;
+                if (d < best) { best = d; point = p; }
+            }
+            if (best == float.MaxValue) point = held.worldCenterOfMass;
+            return true;
+        }
 
         public bool IsHolding(Rigidbody body)
         {
@@ -198,10 +237,19 @@ namespace Roadkill
                 ThrowCharge = Mathf.Min(1f, ThrowCharge + Time.deltaTime / throwChargeSeconds);
             if (RkInput.ThrowReleased)
             {
-                if (holding && ThrowCharge > 0f) ThrowRpc(ThrowCharge, viewCamera.transform.forward);
+                if (holding && ThrowCharge > 0f)
+                {
+                    ThrowRpc(ThrowCharge, viewCamera.transform.forward);
+                    throwCount.Value++;
+                    throwPunch = 0.25f;
+                }
                 ThrowCharge = 0f;
             }
             if (!holding) ThrowCharge = 0f;
+            byte shared = (byte)Mathf.RoundToInt(ThrowCharge * 255f);
+            if (Mathf.Abs(shared - throwChargeShared.Value) > 12 || (shared == 0) != (throwChargeShared.Value == 0))
+                throwChargeShared.Value = shared;
+            throwPunch = Mathf.Max(0f, throwPunch - Time.deltaTime);
 
             UpdateLoad();
             UpdateVisual(Left);
@@ -245,6 +293,14 @@ namespace Roadkill
         public void DebugGrab(int handIndex)
         {
             if (IsSpawned && IsOwner) TryGrab(HandAt(handIndex));
+        }
+
+        /// <summary>Server: let go of everything (props are about to be reset).</summary>
+        public void ServerReleaseAll()
+        {
+            if (!IsServer) return;
+            ServerRelease(Left);
+            ServerRelease(Right);
         }
 
         /// <summary>Owner: drop everything (called when you ragdoll or respawn).</summary>
@@ -293,6 +349,7 @@ namespace Roadkill
             }
             visual.name = $"{handName}Hand";
             visual.transform.localPosition = hand.RestOffset;
+            hand.VisualRestRotation = visual.transform.localRotation;
             foreach (var r in visual.GetComponentsInChildren<Renderer>())
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             hand.Visual = visual.transform;
@@ -306,7 +363,15 @@ namespace Roadkill
             Vector3 targetWorld = held != null ? held.transform.TransformPoint(hand.LocalGrip) : view.TransformPoint(hand.RestOffset);
             Vector3 local = Vector3.ClampMagnitude(view.InverseTransformPoint(targetWorld), 1.2f);
             local.z = Mathf.Max(local.z, 0.3f);
-            hand.Visual.localPosition = Vector3.Lerp(hand.Visual.localPosition, local, 1f - Mathf.Exp(-20f * Time.deltaTime));
+            // Winding up a throw draws the hands back and up; letting go jabs them forward.
+            local += new Vector3(0f, 0.07f, -0.2f) * ThrowCharge;
+            local += Vector3.forward * (0.3f * Mathf.Sin(Mathf.Clamp01(throwPunch / 0.25f) * Mathf.PI));
+            float k = 1f - Mathf.Exp(-20f * Time.deltaTime);
+            hand.Visual.localPosition = Vector3.Lerp(hand.Visual.localPosition, local, k);
+            // Gripping curls the wrist down; a wind-up cocks it back.
+            float curl = (held != null ? 20f : 0f) - 35f * ThrowCharge;
+            Quaternion pose = Quaternion.AngleAxis(curl, Vector3.right) * hand.VisualRestRotation;
+            hand.Visual.localRotation = Quaternion.Slerp(hand.Visual.localRotation, pose, k);
         }
 
         // ---- server --------------------------------------------------------------------------
@@ -379,12 +444,12 @@ namespace Roadkill
             ServerRelease(Left);
             ServerRelease(Right);
 
-            float speed = Mathf.Lerp(minThrowSpeed, maxThrowSpeed, Mathf.Clamp01(charge));
+            float speed = Mathf.Lerp(minThrowSpeed, maxThrowSpeed, Mathf.Clamp01(charge)) * PlaygroundRules.ThrowScale;
             Vector3 aim = (direction.normalized + Vector3.up * 0.15f).normalized;
             foreach (var body in thrown)
             {
                 if (HolderCount(body) > 0) continue;   // a friend still has it: you only let go
-                float massFactor = Mathf.Clamp(fullSpeedThrowMass / body.mass, 0.15f, 1f);
+                float massFactor = Mathf.Clamp(fullSpeedThrowMass * PlaygroundRules.ThrowMassScale / body.mass, 0.15f, 1f);
                 body.AddForce(aim * speed * massFactor, ForceMode.VelocityChange);
             }
         }
@@ -414,7 +479,7 @@ namespace Roadkill
                 positionDamper = 2f * Mathf.Sqrt(spring * dampedMass) * 0.9f,
                 // The cap is what makes weight matter: one hand can only pull this hard.
                 // 25% headroom over its rated load, so a rated load can actually be lifted, not just held.
-                maximumForce = capacityPerHandKg * -Physics.gravity.y * LiftHeadroom
+                maximumForce = capacityPerHandKg * PlaygroundRules.CarryScale * -Physics.gravity.y * LiftHeadroom
             };
             joint.xDrive = drive;
             joint.yDrive = drive;

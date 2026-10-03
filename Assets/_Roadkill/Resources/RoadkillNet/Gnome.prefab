@@ -160,6 +160,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Roadkill.PhysicsProp
   displayName: Garden Gnome
+  bounciness: 0
 --- !u!114 &8611541086577121388
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,7 +198,7 @@ MonoBehaviour:
   SynchronizeTransform: 1
   m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 1
+  SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
   DontDestroyWithOwner: 0
   AutoObjectParentSync: 1

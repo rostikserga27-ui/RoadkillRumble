@@ -24,7 +24,7 @@ namespace Roadkill
 
         public void Damage(float amount, string source)
         {
-            if (IsDown || amount <= 0f) return;
+            if (IsDown || amount <= 0f || PlaygroundRules.Has(PlaygroundRules.Rule.NoDamage)) return;
             Health = Mathf.Max(0f, Health - amount);
             LastDamageText = $"-{Mathf.RoundToInt(amount)} ({source})";
             LastDamageTime = Time.time;

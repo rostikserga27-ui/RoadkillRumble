@@ -14,6 +14,7 @@ namespace Roadkill
         static void Boot()
         {
             if (Object.FindAnyObjectByType<GreyboxBuilder>() != null) return;
+            if (Object.FindAnyObjectByType<RagdollTestBuilder>() != null) return;
             if (Object.FindAnyObjectByType<PlayerMotor>() != null) return;
 
             Scene scene = SceneManager.GetActiveScene();

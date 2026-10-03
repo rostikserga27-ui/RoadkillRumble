@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "6";
+        const string BuildVersion = "11";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -43,6 +43,7 @@ namespace Roadkill.EditorTools
             EnsureFolder(Root);
             EnsureFolder(MaterialFolder);
 
+            var ragdollPrefab = FishermanRagdollBuilder.BuildPrefab();
             foreach (var definition in PropLibrary.All)
             {
                 var go = definition.Build(MaterialFor);
@@ -50,7 +51,13 @@ namespace Roadkill.EditorTools
                 AddNetworking(go, NetworkTransform.AuthorityModes.Server);
                 Save(go, definition.Id);
             }
-            Save(BuildPlayer(), NetSession.PlayerPrefabName);
+            Save(BuildPlayer(ragdollPrefab), NetSession.PlayerPrefabName);
+
+            // The playground's shared switches (spawned once by the server).
+            var rules = new GameObject(PlaygroundRules.PrefabName);
+            rules.AddComponent<NetworkObject>();
+            rules.AddComponent<PlaygroundRules>();
+            Save(rules, PlaygroundRules.PrefabName);
 
             File.WriteAllText(VersionFile, BuildVersion);
             AssetDatabase.SaveAssets();
@@ -84,7 +91,7 @@ namespace Roadkill.EditorTools
             AssetDatabase.SaveAssets();
         }
 
-        static GameObject BuildPlayer()
+        static GameObject BuildPlayer(GameObject ragdollPrefab)
         {
             var go = new GameObject(NetSession.PlayerPrefabName);
 
@@ -112,15 +119,14 @@ namespace Roadkill.EditorTools
             var listener = cameraGo.AddComponent<AudioListener>();
             listener.enabled = false;
 
-            // What other players see: the Blender character if it is imported, otherwise primitives.
+            // What other players see: the fisherman's active ragdoll if the model is imported, otherwise primitives.
             var renderers = new List<Renderer>();
             Transform head, mouth;
-            Renderer tint;
-            RagdollRig ragdoll = null;
-            CharacterAnimator animator = null;
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterModelPath);
-            if (model != null)
-                BuildCharacterModel(go, body, model, renderers, out head, out mouth, out tint, out ragdoll, out animator);
+            Renderer tint = null;
+            ActiveRagdollController ragdoll = null;
+            PaletteTint palette = null;
+            if (ragdollPrefab != null)
+                BuildCharacterModel(go, body, ragdollPrefab, renderers, out head, out mouth, out palette, out ragdoll);
             else
                 BuildPrimitiveBody(go, renderers, out head, out mouth, out tint);
 
@@ -130,6 +136,11 @@ namespace Roadkill.EditorTools
             var motor = go.AddComponent<PlayerMotor>();
             motor.cameraPivot = pivot;
             motor.enabled = false;
+            if (ragdoll != null)
+            {
+                ragdoll.motor = motor;
+                motor.body = ragdoll;   // takes over while the player is down
+            }
             var hands = go.AddComponent<HandsController>();
             hands.viewCamera = cam;
             hands.handModel = AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath);
@@ -143,126 +154,41 @@ namespace Roadkill.EditorTools
             net.listener = listener;
             net.head = head;
             net.bodyRenderers = renderers.ToArray();
-            net.tintRenderers = new[] { tint };
-            net.ragdoll = ragdoll;
-            net.animator = animator;
+            net.tintRenderers = tint != null ? new[] { tint } : new Renderer[0];
+            net.palette = palette;
+            net.body = ragdoll;
+            if (ragdoll != null) go.AddComponent<RagdollPoseSync>();   // others see a downed body as its owner does
             return go;
         }
 
-        const string CharacterModelPath = "Assets/_Roadkill/Art/Character/Character.fbx";
-        const string HandModelPath = "Assets/_Roadkill/Art/Character/FPArm.fbx";
+        const string HandModelPath = CharacterModelImport.FishermanFolder + "FisherFPArm.fbx";
 
-        // Ragdoll bones, parents before children: bone, the bone it points at, radius (m), mass (kg),
-        // twist and swing limits (degrees). Hands, feet, neck and jaw ride on their parents.
-        // Masses add up to about the player's 70 kg, since the ragdoll is now the body props hit.
-        static readonly (string bone, string toward, float radius, float mass, float twist, float swing)[] RagdollBones =
+        /// <summary>
+        /// The fisherman (Generated/Fisherman_Ragdoll.prefab, nested so it stays one source of truth) wired
+        /// to this player's capsule. Remote copies run the active ragdoll; the owner switches it off at spawn.
+        /// </summary>
+        static void BuildCharacterModel(GameObject player, Rigidbody playerBody, GameObject ragdollPrefab, List<Renderer> renderers,
+            out Transform head, out Transform mouth, out PaletteTint palette, out ActiveRagdollController ragdoll)
         {
-            ("Hips", "Spine", 0.13f, 10f, 15f, 15f),
-            ("Spine", "Chest", 0.12f, 8f, 15f, 20f),
-            ("Chest", "Neck", 0.13f, 8f, 15f, 20f),
-            ("Head", null, 0.19f, 6f, 30f, 40f),
-            ("UpperArm_L", "LowerArm_L", 0.05f, 2.5f, 60f, 70f),
-            ("LowerArm_L", "Hand_L", 0.045f, 2f, 80f, 15f),
-            ("UpperArm_R", "LowerArm_R", 0.05f, 2.5f, 60f, 70f),
-            ("LowerArm_R", "Hand_R", 0.045f, 2f, 80f, 15f),
-            ("UpperLeg_L", "LowerLeg_L", 0.07f, 7f, 40f, 50f),
-            ("LowerLeg_L", "Foot_L", 0.06f, 5f, 80f, 10f),
-            ("UpperLeg_R", "LowerLeg_R", 0.07f, 7f, 40f, 50f),
-            ("LowerLeg_R", "Foot_R", 0.06f, 5f, 80f, 10f),
-        };
-
-        static void BuildCharacterModel(GameObject player, Rigidbody playerBody, GameObject modelAsset, List<Renderer> renderers,
-            out Transform head, out Transform mouth, out Renderer tint, out RagdollRig ragdoll, out CharacterAnimator animator)
-        {
-            var model = Object.Instantiate(modelAsset, player.transform);
+            var model = (GameObject)PrefabUtility.InstantiatePrefab(ragdollPrefab, player.transform);
             model.name = "Model";
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.identity;
-            // CharacterAnimator drives the bones; an idle Animator would only cost time.
-            var importedAnimator = model.GetComponent<Animator>();
-            if (importedAnimator != null) Object.DestroyImmediate(importedAnimator);
 
             head = FindDeep(model.transform, "Head");
             mouth = FindDeep(model.transform, "Jaw");
-            // The jaw sits in front of the head; if it ended up behind, the export faces backwards.
-            if (player.transform.InverseTransformPoint(mouth.position).z < player.transform.InverseTransformPoint(head.position).z)
-                model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            var toes = FindDeep(model.transform, "LeftToes");
+            if (toes != null && player.transform.InverseTransformPoint(toes.position).z < 0f)
+                Debug.LogWarning("Roadkill: the fisherman model faces backwards; re-export it facing +Z (see ArtSource/Fisherman).");
 
-            tint = null;
-            foreach (var r in model.GetComponentsInChildren<Renderer>())
-            {
-                renderers.Add(r);
-                if (r is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;   // bounds follow the ragdoll
-                if (r.name == "Overalls") tint = r;
-            }
+            foreach (var r in model.GetComponentsInChildren<Renderer>()) renderers.Add(r);
 
-            var bodies = new List<Rigidbody>();
-            var colliders = new List<Collider>();
-            var byBone = new Dictionary<Transform, Rigidbody>();
-            Transform up = player.transform;
-            foreach (var spec in RagdollBones)
-            {
-                var bone = FindDeep(model.transform, spec.bone);
-                if (bone == null) continue;
-                float unit = 1f / Mathf.Max(0.0001f, bone.lossyScale.x);   // metres to bone-local units
-
-                var rb = bone.gameObject.AddComponent<Rigidbody>();
-                rb.mass = spec.mass;
-                rb.isKinematic = true;
-                rb.interpolation = RigidbodyInterpolation.Interpolate;
-                rb.angularDamping = 0.5f;
-                rb.solverIterations = 10;
-
-                Collider collider;
-                if (spec.toward == null)
-                {
-                    var sphere = bone.gameObject.AddComponent<SphereCollider>();
-                    sphere.radius = spec.radius * unit;
-                    sphere.center = bone.InverseTransformPoint(bone.position + up.up * 0.14f);
-                    collider = sphere;
-                }
-                else
-                {
-                    var target = FindDeep(model.transform, spec.toward);
-                    Vector3 local = bone.InverseTransformPoint(target.position);
-                    Vector3 abs = new Vector3(Mathf.Abs(local.x), Mathf.Abs(local.y), Mathf.Abs(local.z));
-                    var capsule = bone.gameObject.AddComponent<CapsuleCollider>();
-                    capsule.direction = abs.x > abs.y && abs.x > abs.z ? 0 : abs.y > abs.z ? 1 : 2;
-                    capsule.center = local * 0.5f;
-                    capsule.radius = spec.radius * unit;
-                    capsule.height = local.magnitude + spec.radius * unit * 2f;
-                    collider = capsule;
-                }
-
-                for (var parent = bone.parent; parent != null && parent != model.transform; parent = parent.parent)
-                {
-                    if (!byBone.TryGetValue(parent, out var parentBody)) continue;
-                    var joint = bone.gameObject.AddComponent<CharacterJoint>();
-                    joint.connectedBody = parentBody;
-                    joint.axis = bone.InverseTransformDirection(up.right);
-                    joint.swingAxis = bone.InverseTransformDirection(up.forward);
-                    joint.lowTwistLimit = new SoftJointLimit { limit = -spec.twist };
-                    joint.highTwistLimit = new SoftJointLimit { limit = spec.twist };
-                    joint.swing1Limit = new SoftJointLimit { limit = spec.swing };
-                    joint.swing2Limit = new SoftJointLimit { limit = spec.swing };
-                    joint.enableProjection = true;
-                    break;
-                }
-
-                bodies.Add(rb);
-                colliders.Add(collider);
-                byBone[bone] = rb;
-            }
-
-            ragdoll = model.AddComponent<RagdollRig>();
-            ragdoll.root = playerBody;
-            ragdoll.hips = byBone[FindDeep(model.transform, "Hips")];
-            ragdoll.bodies = bodies.ToArray();
-            ragdoll.colliders = colliders.ToArray();
-
-            animator = model.AddComponent<CharacterAnimator>();
-            animator.root = player.transform;
-            animator.ragdoll = ragdoll;
+            ragdoll = model.GetComponent<ActiveRagdollController>();
+            ragdoll.root = player.transform;
+            ragdoll.rootBody = playerBody;
+            // On the network the server decides knockdowns (ImpactReporter -> PlayerMotor); local hits only stagger.
+            ragdoll.knockoutOnImpact = false;
+            palette = model.GetComponent<PaletteTint>();
         }
 
         /// <summary>The old stand-in body: capsule, sphere head, googly eyes.</summary>

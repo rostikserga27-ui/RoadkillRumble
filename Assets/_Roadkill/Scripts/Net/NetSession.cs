@@ -61,6 +61,7 @@ namespace Roadkill
                 if (args[i] == "-rktest") gameObject.AddComponent<NetTest>();
                 if (args[i] == "-rktestlog") gameObject.AddComponent<NetTest>().logMode = true;
                 if (args[i] == "-rktestwalk") gameObject.AddComponent<NetTest>().walkMode = true;
+                if (args[i] == "-rktestfly") gameObject.AddComponent<NetTest>().flyMode = true;
             }
         }
 
@@ -131,6 +132,26 @@ namespace Roadkill
         }
 
         void SpawnWorld()
+        {
+            SpawnProps();
+            var rules = Resources.Load<GameObject>($"{ResourceFolder}/{PlaygroundRules.PrefabName}");
+            if (rules != null) Instantiate(rules).GetComponent<NetworkObject>().Spawn(true);
+            else Debug.LogWarning("Roadkill: no PlaygroundRules network prefab; run Roadkill > Rebuild Network Prefabs.");
+        }
+
+        /// <summary>Server: put every prop back where the level starts it (dispensers refill on their own).</summary>
+        public void ResetProps()
+        {
+            if (manager == null || !manager.IsServer) return;
+            foreach (var hands in FindObjectsByType<HandsController>(FindObjectsInactive.Exclude)) hands.ServerReleaseAll();
+            var props = new System.Collections.Generic.List<NetworkObject>();
+            foreach (var spawned in manager.SpawnManager.SpawnedObjectsList)
+                if (spawned.GetComponent<PhysicsProp>() != null) props.Add(spawned);
+            foreach (var prop in props) prop.Despawn(true);
+            SpawnProps();
+        }
+
+        void SpawnProps()
         {
             foreach (var placement in PropLayout.Greybox)
             {

@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "9";
+        const string BuildVersion = "10";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -52,6 +52,12 @@ namespace Roadkill.EditorTools
                 Save(go, definition.Id);
             }
             Save(BuildPlayer(ragdollPrefab), NetSession.PlayerPrefabName);
+
+            // The playground's shared switches (spawned once by the server).
+            var rules = new GameObject(PlaygroundRules.PrefabName);
+            rules.AddComponent<NetworkObject>();
+            rules.AddComponent<PlaygroundRules>();
+            Save(rules, PlaygroundRules.PrefabName);
 
             File.WriteAllText(VersionFile, BuildVersion);
             AssetDatabase.SaveAssets();

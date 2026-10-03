@@ -34,7 +34,25 @@ namespace Roadkill
             Simple("Crate75", "Crate (75 kg)", PrimitiveType.Cube, new Vector3(1f, 0.8f, 0.8f), 75f, Wood),
             Simple("Box5", "Box (5 kg)", PrimitiveType.Cube, Vector3.one * 0.5f, 5f, new Color(0.8f, 0.7f, 0.45f)),
             new Definition { Id = "SwingingLog", Build = BuildSwingingLog },
+            new Definition { Id = "Dodgeball", Build = BuildDodgeball },
         };
+
+        /// <summary>A light bouncy ball that still knocks people over: the dodgeball court's ammo.</summary>
+        static GameObject BuildDodgeball(Func<Color, Material> material)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            go.transform.localScale = Vector3.one * 0.6f;
+            go.GetComponent<Renderer>().sharedMaterial = material(new Color(0.85f, 0.12f, 0.12f));
+            var body = AddBody(go, 3f, "Dodgeball");
+            body.angularDamping = 0.3f;
+            go.GetComponent<PhysicsProp>().bounciness = 0.6f;
+            var impact = go.GetComponent<ImpactReporter>();
+            impact.massThreshold = 2f;      // the 20 kg rule does not apply to dodgeballs
+            impact.speedThreshold = 6f;     // a real throw, not a nudge
+            impact.downtime = 1.2f;
+            impact.damageFactor = 0.25f;
+            return go;
+        }
 
         static Definition Simple(string id, string displayName, PrimitiveType shape, Vector3 scale, float mass, Color color) =>
             new Definition
@@ -113,7 +131,7 @@ namespace Roadkill
         }
     }
 
-    /// <summary>Where the server spawns each prop in the greybox level.</summary>
+    /// <summary>Where the server spawns each prop in the greybox playground (see GreyboxBuilder for the stations).</summary>
     public static class PropLayout
     {
         public struct Placement
@@ -131,6 +149,11 @@ namespace Roadkill
         }
 
         public static readonly Vector3 SwingPivot = new Vector3(-20f, 6f, -20f);
+        public static readonly float[] GnomePostsX = { 11f, 13f, 15f, 17f };
+        public const float GnomePostsZ = 12f;
+        public const float GnomePostHeight = 1.2f;
+        public static readonly Vector3 BoxWall = new Vector3(-7f, 0f, 40f);
+        public static readonly Vector3 IceRink = new Vector3(-30f, 0f, -38f);
 
         public static Placement[] Greybox
         {
@@ -157,6 +180,20 @@ namespace Roadkill
                     float x = 8f + (i - (3 - row) * 0.5f) * (size + 0.02f);
                     list.Add(new Placement("Box5", new Vector3(x, size * 0.5f + row * size, 8f)));
                 }
+
+                // Throwing range: garden gnomes on posts.
+                foreach (float x in GnomePostsX)
+                    list.Add(new Placement("Gnome", new Vector3(x, GnomePostHeight + 0.32f, GnomePostsZ)));
+
+                // Cannon A's target: a wall of boxes to fly through.
+                for (int row = 0; row < 4; row++)
+                for (int i = 0; i < 4; i++)
+                    list.Add(new Placement("Box5", BoxWall + new Vector3((i - 1.5f) * (size + 0.02f), size * 0.5f + row * size, 0f)));
+
+                // Ice rink: tyres lying flat are pucks.
+                list.Add(new Placement("Tire", IceRink + new Vector3(-2f, 0.25f, 0f)));
+                list.Add(new Placement("Tire", IceRink + new Vector3(2f, 0.25f, 1f)));
+                list.Add(new Placement("Gnome", IceRink + new Vector3(0f, 0.45f, -3f)));
                 return list.ToArray();
             }
         }

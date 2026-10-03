@@ -295,6 +295,14 @@ namespace Roadkill
             if (IsSpawned && IsOwner) TryGrab(HandAt(handIndex));
         }
 
+        /// <summary>Server: let go of everything (props are about to be reset).</summary>
+        public void ServerReleaseAll()
+        {
+            if (!IsServer) return;
+            ServerRelease(Left);
+            ServerRelease(Right);
+        }
+
         /// <summary>Owner: drop everything (called when you ragdoll or respawn).</summary>
         public void ReleaseAll()
         {
@@ -436,12 +444,12 @@ namespace Roadkill
             ServerRelease(Left);
             ServerRelease(Right);
 
-            float speed = Mathf.Lerp(minThrowSpeed, maxThrowSpeed, Mathf.Clamp01(charge));
+            float speed = Mathf.Lerp(minThrowSpeed, maxThrowSpeed, Mathf.Clamp01(charge)) * PlaygroundRules.ThrowScale;
             Vector3 aim = (direction.normalized + Vector3.up * 0.15f).normalized;
             foreach (var body in thrown)
             {
                 if (HolderCount(body) > 0) continue;   // a friend still has it: you only let go
-                float massFactor = Mathf.Clamp(fullSpeedThrowMass / body.mass, 0.15f, 1f);
+                float massFactor = Mathf.Clamp(fullSpeedThrowMass * PlaygroundRules.ThrowMassScale / body.mass, 0.15f, 1f);
                 body.AddForce(aim * speed * massFactor, ForceMode.VelocityChange);
             }
         }
@@ -471,7 +479,7 @@ namespace Roadkill
                 positionDamper = 2f * Mathf.Sqrt(spring * dampedMass) * 0.9f,
                 // The cap is what makes weight matter: one hand can only pull this hard.
                 // 25% headroom over its rated load, so a rated load can actually be lifted, not just held.
-                maximumForce = capacityPerHandKg * -Physics.gravity.y * LiftHeadroom
+                maximumForce = capacityPerHandKg * PlaygroundRules.CarryScale * -Physics.gravity.y * LiftHeadroom
             };
             joint.xDrive = drive;
             joint.yDrive = drive;

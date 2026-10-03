@@ -17,7 +17,7 @@ namespace Roadkill
             "G hold, then release: throw what you hold\n" +
             "C hold: play possum   Space while down: get up faster\n" +
             "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
-            "R respawn   F1 hide help   Esc free the mouse";
+            "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
 
         PlayerMotor motor;
         PlayerHealth health;
@@ -112,7 +112,10 @@ namespace Roadkill
             }
 
             if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 120f), Help, label);
-            if (Cursor.lockState != CursorLockMode.Locked)
+            string rules = PlaygroundRules.Summary();
+            if (rules.Length > 0)
+                GUI.Label(new Rect(w - 380f, 44f, 360f, 48f), $"Rules: {rules}", label);
+            if (Cursor.lockState != CursorLockMode.Locked && !PlaygroundRules.PanelOpen)
                 GUI.Label(new Rect(0f, h * 0.5f + 40f, w, 40f), "Click to play", banner);
         }
 

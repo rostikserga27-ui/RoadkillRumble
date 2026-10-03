@@ -58,10 +58,10 @@ namespace Roadkill
         public float missAimDistance = 0.8f;
         [Tooltip("Stepping in to a target beyond arm's length: the player dashes at it this fast (m/s) and stops this far from the aim point (capsule centre, metres; the aim point is 0.1 m inside the target).")]
         public float approachSpeed = 5f;
-        public float comfortableDistance = 0.6f;
+        public float comfortableDistance = 0.5f;
         [Tooltip("The arm is thrown once the aim point is within arm's length plus this (metres), or after maxApproachSeconds of stepping in.")]
         public float throwReach = 0.35f;
-        public float maxApproachSeconds = 0.35f;
+        public float maxApproachSeconds = 0.25f;
         [Tooltip("How far the fist cocks back past the guard at full charge (metres).")]
         public float windUpPullBack = 0.12f;
         [Tooltip("Share of the strike's kick pushed back into the chest (recoil), so momentum stays sane.")]
@@ -75,7 +75,7 @@ namespace Roadkill
         public float windUpLean = 6f;
         public float strikeLean = 18f;
         [Tooltip("How far the body steps ahead of the gameplay capsule at full strike lean (metres).")]
-        public float strikeStepForward = 0.25f;
+        public float strikeStepForward = 0.35f;
         [Tooltip("A punch steps the player forward (m/s on the capsule): a jab a little, a full charge all of it.")]
         public float lungeSpeed = 2.4f;
         [Range(0f, 1f)] public float jabLungeShare = 0.45f;

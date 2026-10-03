@@ -23,6 +23,8 @@ namespace Roadkill
         public float waitForPlayerSeconds = 25f;
 
         readonly List<string> hitLines = new List<string>();
+        readonly List<string> contactLines = new List<string>();
+        string lastDetail = "";
         int passed, failed;
 
         IEnumerator Start()
@@ -78,6 +80,7 @@ namespace Roadkill
                 if (FriendlyFire.Instance != null) FriendlyFire.Instance.ServerSet(FriendlyFire.Switch.FriendlyFire, false);
                 yield return PunchPlayer(me, other, "jab, friendly fire off", 1.3f, 0f, expectHit: false);
                 if (FriendlyFire.Instance != null) FriendlyFire.Instance.ServerSet(FriendlyFire.Switch.FriendlyFire, true);
+                yield return KnockoutTests(me, other);
             }
 
             Application.logMessageReceived -= Capture;
@@ -88,6 +91,8 @@ namespace Roadkill
         void Capture(string message, string stackTrace, LogType type)
         {
             if (message.StartsWith("Roadkill: fist hit") || message.Contains(" punched ")) hitLines.Add(message);
+            if (message.StartsWith("RK-PUNCH   contact")) contactLines.Add(message.Substring(19));
+            if (message.Contains("rejected")) contactLines.Add(message);
         }
 
         IEnumerator PunchProp(PlayerNet me, string label, string prefab, Vector3 near, float hold)
@@ -119,8 +124,9 @@ namespace Roadkill
             // Let the victim get up and settle first.
             for (float t = 0f; t < 6f && other.IsRagdolledShared; t += 0.2f) yield return new WaitForSeconds(0.2f);
             yield return new WaitForSeconds(1.5f);   // and let a head knocked back come upright
+            for (float t = 0f; t < 3f && other.body != null && !other.body.IsUpright; t += 0.2f) yield return new WaitForSeconds(0.2f);
             Vector3 them = other.transform.position;
-            Vector3 feet = them + new Vector3(0f, 0f, distance);   // 0.75: face to face, capsules (0.35 each) almost touching
+            Vector3 feet = them + new Vector3(0f, 0f, distance);   // 0.75: face to face, a little off touching (capsules 0.3 each)
             int before = CountLines(" punched ");
             yield return Punch(me, feet, them + Vector3.up * height, hold, other.body);
             bool registered = CountLines(" punched ") > before;
@@ -144,6 +150,7 @@ namespace Roadkill
                 yield return new WaitForFixedUpdate();
             }
             int linesBefore = CountLines("Roadkill: fist hit");
+            contactLines.Clear();
             fists.DebugPunch(hold);
             lastFistSpeed = lastVictimSpeed = 0f;
             float maxOwnBone = 0f;
@@ -175,7 +182,7 @@ namespace Roadkill
                     for (int i = 0; i < victim.PartCount; i++) lastVictimSpeed = Mathf.Max(lastVictimSpeed, victim.PartBody(i).linearVelocity.magnitude);
             }
             lastHit = CountLines("Roadkill: fist hit") > linesBefore;
-            Log($"  trace (phase reach m / speed along aim m/s): {trace}");
+            lastDetail = $" || trace {trace}|| contacts: {(contactLines.Count == 0 ? "none" : string.Join(" ; ", contactLines))}";
             float hipsOff = Vector3.Distance(body.Hips.position, me.transform.position + Vector3.up * body.hipHeight);
             Check("  attacker body stable", maxOwnBone < 8f && hipsOff < 0.6f, $"bones up to {maxOwnBone:0.0} m/s after the punch, hips {hipsOff:0.00} m off");
             if (victim != null) Check("  victim body sane", lastVictimSpeed < 25f, $"victim bones up to {lastVictimSpeed:0.0} m/s");
@@ -201,7 +208,7 @@ namespace Roadkill
             return n;
         }
 
-        string LastLine() => hitLines.Count > 0 ? $" | last: {hitLines[hitLines.Count - 1].Replace("Roadkill: ", "")}" : "";
+        string LastLine() => (hitLines.Count > 0 ? $" | last: {hitLines[hitLines.Count - 1].Replace("Roadkill: ", "")}" : "") + lastDetail;
 
         void Check(string label, bool ok, string detail)
         {
@@ -209,8 +216,91 @@ namespace Roadkill
             Log($"{(ok ? "PASS" : "FAIL")} {label}: {detail}");
         }
 
+        // ---- out cold: drag, revive, respawn -----------------------------------------------------------
+
+        IEnumerator KnockoutTests(PlayerNet me, PlayerNet other)
+        {
+            var knockout = other.GetComponent<PlayerKnockout>();
+            var hands = me.Hands;
+            var body = other.body;
+            Vector3 spawn = other.transform.position;
+            for (float t = 0f; t < 6f && other.IsRagdolledShared; t += 0.2f) yield return new WaitForSeconds(0.2f);
+            yield return new WaitForSeconds(1f);
+            spawn = other.transform.position;
+
+            yield return KnockOut(me, other, knockout);
+            Check("out cold at 0 HP", knockout.IsUnconscious, $"{knockout.SecondsLeft} s on the clock, down={other.IsRagdolledShared}");
+            if (!knockout.IsUnconscious) yield break;
+            yield return new WaitForSeconds(2f);   // let the body land
+
+            // Grab it (E) from a step away, looking at the chest.
+            Vector3 hips = body.Hips.position;
+            Vector3 away = Vector3.ProjectOnPlane(me.transform.position - hips, Vector3.up);
+            away = away.sqrMagnitude > 0.01f ? away.normalized : Vector3.forward;
+            Vector3 feet = new Vector3(hips.x, 0.02f, hips.z) + away * 1.1f;
+            for (int i = 0; i < 20; i++)
+            {
+                me.Motor.DebugPlace(feet, body.Chest.position);
+                yield return new WaitForFixedUpdate();
+            }
+            hands.DebugToggleGrab();
+            yield return new WaitForSeconds(0.6f);
+            bool holding = hands.HeldPlayer(hands.Left) == other || hands.HeldPlayer(hands.Right) == other;
+            Check("grab the body (E)", holding, $"left {Name(hands.HeldPlayer(hands.Left))}, right {Name(hands.HeldPlayer(hands.Right))}, speed x{hands.SpeedMultiplier:0.00}");
+
+            // Back away for 3 s, still looking at it: the body should come along.
+            Vector3 start = body.Hips.position;
+            float maxSpeed = 0f;
+            for (float t = 0f; t < 3f; t += 0.1f)
+            {
+                me.Motor.DebugLook(body.Hips.position);
+                me.Motor.DebugMove(new Vector2(0f, -1f), 0.2f);
+                maxSpeed = Mathf.Max(maxSpeed, Vector3.ProjectOnPlane(me.GetComponent<Rigidbody>().linearVelocity, Vector3.up).magnitude);
+                yield return new WaitForSeconds(0.1f);
+            }
+            float dragged = Vector3.ProjectOnPlane(body.Hips.position - start, Vector3.up).magnitude;
+            bool stillHolding = hands.HeldPlayer(hands.Left) == other || hands.HeldPlayer(hands.Right) == other;
+            Check("drag the body", dragged > 1.2f && stillHolding,
+                $"body moved {dragged:0.00} m in 3 s, still holding={stillHolding}, my top speed {maxSpeed:0.0} m/s, gap {Vector3.Distance(me.transform.position, body.Hips.position):0.00} m");
+            if (stillHolding) hands.DebugToggleGrab();
+            yield return new WaitForSeconds(0.5f);
+
+            // Get them up (hold F) from beside the body.
+            hips = body.Hips.position;
+            feet = new Vector3(hips.x, 0.02f, hips.z) + away * 1f;
+            for (int i = 0; i < 10; i++)
+            {
+                me.Motor.DebugPlace(feet, body.Chest.position);
+                yield return new WaitForFixedUpdate();
+            }
+            var mine = me.GetComponent<PlayerKnockout>();
+            mine.DebugRevive(4f);
+            yield return new WaitForSeconds(4.5f);
+            Check("revive (hold F)", !knockout.IsUnconscious, $"out cold={knockout.IsUnconscious}");
+
+            // Out cold again and nobody helps: respawn when the clock runs out (the victim runs a short clock).
+            for (float t = 0f; t < 6f && other.IsRagdolledShared; t += 0.2f) yield return new WaitForSeconds(0.2f);
+            yield return new WaitForSeconds(1f);
+            yield return KnockOut(me, other, knockout);
+            float waited = 0f;
+            for (; waited < 20f && knockout.IsUnconscious; waited += 0.5f) yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(1f);
+            float fromSpawn = Vector3.Distance(other.transform.position, spawn);
+            Check("respawn when the clock runs out", !knockout.IsUnconscious && fromSpawn < 3f,
+                $"after {waited:0.0} s, {fromSpawn:0.0} m from the spawn point");
+        }
+
+        IEnumerator KnockOut(PlayerNet me, PlayerNet other, PlayerKnockout knockout)
+        {
+            other.GetComponent<PunchReaction>().ServerReact(500f, 1.5f, Vector3.up * 2f, Vector3.zero, me.OwnerClientId, 1f);
+            for (float t = 0f; t < 3f && !knockout.IsUnconscious; t += 0.1f) yield return new WaitForSeconds(0.1f);
+        }
+
+        static string Name(PlayerNet p) => p != null ? PlayerNet.NameOf(p.OwnerClientId) : "nothing";
+
         IEnumerator StandAndReport(PlayerNet me)
         {
+            me.Health.unconsciousSeconds = 10f;   // a short clock, so the host's test can wait for the respawn
             var health = me.Health;
             float lastHealth = health.Health;
             bool lastDown = false;

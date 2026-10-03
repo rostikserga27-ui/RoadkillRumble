@@ -14,6 +14,8 @@ namespace Roadkill
     /// Anything heavier sags and drags: the carry table's "needs more friends or a dolly" rule.
     /// Everyone sees the throw too: the owner shares its charge and each throw, which the fisherman's
     /// body (ActiveRagdollController, via PlayerNet) turns into a wind-up and a fling.
+    /// A friend who is out cold can be grabbed the same way (E on their body): the server records which bone
+    /// each hand holds, and the downed player's own machine drags its body there (PlayerKnockout).
     /// </summary>
     public class HandsController : NetworkBehaviour
     {
@@ -66,6 +68,11 @@ namespace Roadkill
         // Written by the server: what each hand holds (NetworkObjectId), readable everywhere.
         NetworkVariable<ulong> leftHeld = new NetworkVariable<ulong>(NoObject);
         NetworkVariable<ulong> rightHeld = new NetworkVariable<ulong>(NoObject);
+        // Written by the server while a hand holds a body: which bone, and where on it (bone space).
+        NetworkVariable<int> leftGripPart = new NetworkVariable<int>(-1);
+        NetworkVariable<int> rightGripPart = new NetworkVariable<int>(-1);
+        NetworkVariable<Vector3> leftGripLocal = new NetworkVariable<Vector3>(Vector3.zero);
+        NetworkVariable<Vector3> rightGripLocal = new NetworkVariable<Vector3>(Vector3.zero);
         // Written by the owner: where it is looking, so the server can place the hand anchors.
         NetworkVariable<Vector3> viewPosition = new NetworkVariable<Vector3>(Vector3.zero,
             NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -91,6 +98,10 @@ namespace Roadkill
 
         static readonly List<HandsController> All = new List<HandsController>();
         public static int PlayerCount => All.Count;
+        public static IReadOnlyList<HandsController> Players => All;
+
+        /// <summary>The most one hand pulls with (N): its rated load plus lifting headroom.</summary>
+        public float HandForceCap => capacityPerHandKg * PlaygroundRules.CarryScale * -Physics.gravity.y * LiftHeadroom;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => All.Clear();
@@ -150,6 +161,41 @@ namespace Roadkill
 
         public bool IsHolding(Hand hand) => HeldBody(hand) != null;
 
+        /// <summary>The player whose body this hand holds (a friend who is out cold), if any.</summary>
+        public PlayerNet HeldPlayer(Hand hand)
+        {
+            var held = HeldBody(hand);
+            return held != null ? held.GetComponent<PlayerNet>() : null;
+        }
+
+        /// <summary>Does this hand (0 left, 1 right) hold the body of the player with this NetworkObjectId, and where?</summary>
+        public bool TryGetBodyGrip(int handIndex, ulong playerId, out int part, out Vector3 local)
+        {
+            var hand = HandAt(handIndex);
+            part = handIndex == 0 ? leftGripPart.Value : rightGripPart.Value;
+            local = handIndex == 0 ? leftGripLocal.Value : rightGripLocal.Value;
+            return hand != null && HeldId(hand) == playerId && part >= 0;
+        }
+
+        /// <summary>Where this player holds things: in front of the eyes, the hand's side out, a little low.</summary>
+        public Vector3 HoldPoint(int handIndex, float distance)
+        {
+            var hand = HandAt(handIndex);
+            return viewPosition.Value + viewRotation.Value * new Vector3(hand != null ? hand.SideOffset : 0f, -0.15f, distance);
+        }
+
+        /// <summary>A held body's grip in the world (on this peer's copy of the bone), if this hand holds one.</summary>
+        bool TryGetBodyGripPoint(Hand hand, out Vector3 point)
+        {
+            point = default;
+            var player = HeldPlayer(hand);
+            if (player == null || player.body == null) return false;
+            int part = hand.Index == 0 ? leftGripPart.Value : rightGripPart.Value;
+            if (part < 0 || part >= player.body.PartCount) return false;
+            point = player.body.PartBody(part).transform.TransformPoint(hand.Index == 0 ? leftGripLocal.Value : rightGripLocal.Value);
+            return true;
+        }
+
         /// <summary>
         /// Where a hand holds its object, for the body's arm to reach to: the exact grip on the owner, the
         /// nearest point on the object to `from` (the shoulder) on other peers, which do not know the grip.
@@ -159,6 +205,7 @@ namespace Roadkill
             point = default;
             var held = HeldBody(hand);
             if (held == null) return false;
+            if (TryGetBodyGripPoint(hand, out point)) return true;
             if (IsOwner)
             {
                 point = held.transform.TransformPoint(hand.LocalGrip);
@@ -216,9 +263,15 @@ namespace Roadkill
         {
             if (body == null) return;
             if (!ignore && IsHolding(body)) return;   // still held by the other hand
+            var theirs = new List<Collider>(body.GetComponentsInChildren<Collider>());
+            // A friend's body lives outside their player object: you do not trip over the man you drag.
+            var player = body.GetComponent<PlayerNet>();
+            if (player != null && player.body != null)
+                for (int i = 0; i < player.body.PartCount; i++)
+                    theirs.AddRange(player.body.PartBody(i).GetComponentsInChildren<Collider>());
             foreach (var mine in ownColliders)
-            foreach (var theirs in body.GetComponentsInChildren<Collider>())
-                Physics.IgnoreCollision(mine, theirs, ignore);
+            foreach (var other in theirs)
+                if (mine != null && other != null) Physics.IgnoreCollision(mine, other, ignore);
         }
 
         // ---- owner ---------------------------------------------------------------------------
@@ -273,6 +326,7 @@ namespace Roadkill
                 ReleaseAllRpc();
                 return;
             }
+            if (TryGrabBody()) return;
             if (!FindGrab(out var prop, out var networkObject, out var hit)) return;
             float holdDistance = Mathf.Clamp(hit.distance, minHoldDistance, maxHoldDistance);
             foreach (var hand in new[] { Left, Right })
@@ -281,6 +335,45 @@ namespace Roadkill
                 hand.LocalGrip = prop.transform.InverseTransformPoint(grip);
                 GrabRpc(hand.Index, networkObject, hand.LocalGrip, holdDistance);
             }
+        }
+
+        /// <summary>E on a friend who is out cold: both hands take hold of the bone under the crosshair.</summary>
+        bool TryGrabBody()
+        {
+            Ray ray = viewCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            var hits = Physics.RaycastAll(ray, reach, ~0, QueryTriggerInteraction.Ignore);
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            foreach (var hit in hits)
+            {
+                if (System.Array.IndexOf(ownColliders, hit.collider) >= 0) continue;
+                var knockout = PlayerKnockout.Of(hit.collider);
+                if (knockout == null || knockout.gameObject == gameObject || !knockout.IsUnconscious || knockout.Player.body == null) return false;
+                var ragdoll = knockout.Player.body;
+                int part = hit.rigidbody != null ? ragdoll.PartIndexOf(hit.rigidbody) : -1;
+                if (part < 0) part = ragdoll.PartIndexOf(ragdoll.Chest);
+                var bone = ragdoll.PartBody(part);
+                foreach (var hand in new[] { Left, Right })
+                {
+                    Vector3 wanted = hit.point + viewCamera.transform.right * (hand.SideOffset * 0.4f);
+                    Vector3 grip = hit.point;
+                    float bestDistance = float.MaxValue;
+                    foreach (var c in bone.GetComponentsInChildren<Collider>())
+                    {
+                        if (c.attachedRigidbody != bone) continue;
+                        Vector3 p = c.ClosestPoint(wanted);
+                        if ((p - wanted).sqrMagnitude < bestDistance) { bestDistance = (p - wanted).sqrMagnitude; grip = p; }
+                    }
+                    GrabBodyRpc(hand.Index, knockout.NetworkObject, part, bone.transform.InverseTransformPoint(grip));
+                }
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Test hook: press E.</summary>
+        public void DebugToggleGrab()
+        {
+            if (IsSpawned && IsOwner) ToggleGrab();
         }
 
         void TryGrab(Hand hand)
@@ -360,7 +453,18 @@ namespace Roadkill
             else if (heaviest <= 80f) { SpeedMultiplier = 0.65f; CanSprint = false; }
             else if (heaviest <= 160f) { SpeedMultiplier = 0.55f; CanSprint = false; }
             else { SpeedMultiplier = 0.45f; CanSprint = false; }
+
+            // Dragging a body that lags behind (snagged, too heavy for one): the pull holds you back, down to
+            // a crawl, so you tug it along instead of walking off and losing your grip.
+            float stretch = 0f;
+            foreach (var hand in new[] { Left, Right })
+                if (TryGetBodyGripPoint(hand, out Vector3 grip))
+                    stretch = Mathf.Max(stretch, Vector3.Distance(grip, HoldPoint(hand.Index, BodyHoldDistance)));
+            if (stretch > 0f) SpeedMultiplier *= Mathf.Clamp(1.4f - stretch * 0.5f, 0.15f, 1f);
         }
+
+        /// <summary>How far in front of the eyes a dragged body's grip is held (PlayerKnockout pulls it there).</summary>
+        public const float BodyHoldDistance = 1f;
 
         /// <summary>First-person punch pose of a hand (PlayerFists): an offset in view space and a wrist curl in degrees.</summary>
         public void SetFistPose(int hand, Vector3 offset, float curl, bool active)
@@ -405,7 +509,8 @@ namespace Roadkill
             if (hand.Visual == null) return;
             Transform view = viewCamera.transform;
             var held = HeldBody(hand);
-            Vector3 targetWorld = held != null ? held.transform.TransformPoint(hand.LocalGrip) : view.TransformPoint(hand.RestOffset);
+            Vector3 targetWorld = held == null ? view.TransformPoint(hand.RestOffset)
+                : TryGetBodyGripPoint(hand, out Vector3 bodyGrip) ? bodyGrip : held.transform.TransformPoint(hand.LocalGrip);
             Vector3 local = Vector3.ClampMagnitude(view.InverseTransformPoint(targetWorld), 1.2f);
             local.z = Mathf.Max(local.z, 0.3f);
             // Winding up a throw draws the hands back and up; letting go jabs them forward.
@@ -439,6 +544,39 @@ namespace Roadkill
             if (!IsSpawned || !IsServer) return;
             MoveAnchor(Left);
             MoveAnchor(Right);
+            CheckBodyGrip(Left);
+            CheckBodyGrip(Right);
+        }
+
+        /// <summary>Server: let go of a body once its player is up again, or once it is left far behind.</summary>
+        void CheckBodyGrip(Hand hand)
+        {
+            var player = HeldPlayer(hand);
+            if (player == null) return;
+            var knockout = player.GetComponent<PlayerKnockout>();
+            bool far = Vector3.Distance(viewPosition.Value, player.transform.position) > reach + 3f;
+            if (knockout != null && knockout.IsUnconscious && !far) return;
+            Debug.Log($"Roadkill: {PlayerNet.NameOf(OwnerClientId)} let go of {PlayerNet.NameOf(player.OwnerClientId)}'s body ({(far ? $"left behind, {Vector3.Distance(viewPosition.Value, player.transform.position):0.0} m" : "they are up")})");
+            ServerRelease(hand);
+        }
+
+        [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Owner)]
+        void GrabBodyRpc(int handIndex, NetworkObjectReference targetRef, int part, Vector3 localPoint)
+        {
+            var hand = HandAt(handIndex);
+            if (hand == null || !targetRef.TryGet(out NetworkObject target) || target == NetworkObject) return;
+            var knockout = target.GetComponent<PlayerKnockout>();
+            var ragdoll = knockout != null ? knockout.Player.body : null;
+            if (ragdoll == null || !knockout.IsUnconscious || part < 0 || part >= ragdoll.PartCount) return;
+            Vector3 point = ragdoll.PartBody(part).transform.TransformPoint(localPoint);
+            if (Vector3.Distance(point, viewPosition.Value) > reach + 1.5f) return;   // allow for lag, not for cheats
+
+            ServerRelease(hand);
+            hand.HoldDistance = 1f;
+            if (hand.Index == 0) { leftGripPart.Value = part; leftGripLocal.Value = localPoint; }
+            else { rightGripPart.Value = part; rightGripLocal.Value = localPoint; }
+            SetHeld(hand, target.NetworkObjectId);
+            Debug.Log($"Roadkill: {PlayerNet.NameOf(OwnerClientId)} grabbed {PlayerNet.NameOf(target.OwnerClientId)}'s body with hand {handIndex}");
         }
 
         void MoveAnchor(Hand hand)
@@ -488,6 +626,12 @@ namespace Roadkill
             var thrown = new HashSet<Rigidbody>();
             if (Left.ServerHeld != null) thrown.Add(Left.ServerHeld);
             if (Right.ServerHeld != null) thrown.Add(Right.ServerHeld);
+            var bodies = new HashSet<PlayerKnockout>();
+            foreach (var hand in new[] { Left, Right })
+            {
+                var player = HeldPlayer(hand);
+                if (player != null) bodies.Add(player.GetComponent<PlayerKnockout>());
+            }
             ServerRelease(Left);
             ServerRelease(Right);
 
@@ -498,6 +642,13 @@ namespace Roadkill
                 if (HolderCount(body) > 0) continue;   // a friend still has it: you only let go
                 float massFactor = Mathf.Clamp(fullSpeedThrowMass * PlaygroundRules.ThrowMassScale / body.mass, 0.15f, 1f);
                 body.AddForce(aim * speed * massFactor, ForceMode.VelocityChange);
+            }
+            // A friend's body flies on its owner's machine, as heavy as it is to carry.
+            foreach (var knockout in bodies)
+            {
+                if (knockout == null || HolderCount(knockout.GetComponent<Rigidbody>()) > 0) continue;
+                float massFactor = Mathf.Clamp(fullSpeedThrowMass * PlaygroundRules.ThrowMassScale / knockout.cargoMass, 0.15f, 1f);
+                knockout.ServerThrow(aim * speed * Mathf.Max(massFactor, 0.35f));
             }
         }
 
@@ -552,6 +703,8 @@ namespace Roadkill
             if (hand == null) return;
             DropJoint(hand);
             if (HeldId(hand) != NoObject) SetHeld(hand, NoObject);
+            var part = hand.Index == 0 ? leftGripPart : rightGripPart;
+            if (part.Value != -1) part.Value = -1;
         }
 
         static void DropJoint(Hand hand)

@@ -16,6 +16,7 @@ namespace Roadkill
             "LMB tap: jab   LMB hold: haymaker (fists take turns)\n" +
             "E: grab with both hands / let go   G hold, then release: throw\n" +
             "C hold: play possum   Space while down: get up faster\n" +
+            "Friend out cold: E drag them, hold F get them up\n" +
             "F2 open mic / push-to-talk (V)   F3 hear yourself\n" +
             "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
 
@@ -23,6 +24,7 @@ namespace Roadkill
         PlayerHealth health;
         HandsController hands;
         PlayerFists fists;
+        PlayerKnockout knockout;
         VoiceChat voice;
         Camera viewCamera;
         GUIStyle label;
@@ -36,6 +38,7 @@ namespace Roadkill
             health = GetComponent<PlayerHealth>();
             hands = GetComponent<HandsController>();
             fists = GetComponent<PlayerFists>();
+            knockout = GetComponent<PlayerKnockout>();
             voice = GetComponent<VoiceChat>();
             viewCamera = hands != null ? hands.viewCamera : Camera.main;
         }
@@ -126,7 +129,13 @@ namespace Roadkill
                 Bar(new Rect(w * 0.5f - 80f, h * 0.5f + 28f, 160f, 10f), hands.ThrowCharge, Color.yellow, "");
 
             Rect center = new Rect(0f, h * 0.3f, w, 40f);
-            if (health.IsDown) GUI.Label(center, "KNOCKED OUT", banner);
+            if (health.IsDown)
+            {
+                GUI.Label(center, $"OUT COLD — {Mathf.CeilToInt(health.DownSecondsLeft)} s", banner);
+                GUI.Label(new Rect(0f, h * 0.3f + 80f, w, 24f), "Friends can drag you (E) or get you up (hold F). Hold R to respawn now.", centered);
+                if (knockout != null && knockout.GiveUpProgress > 0f)
+                    Bar(new Rect(w * 0.5f - 100f, h * 0.3f + 108f, 200f, 10f), knockout.GiveUpProgress, new Color(1f, 0.4f, 0.3f), "");
+            }
             else if (motor.IsPossum) GUI.Label(center, "PLAYING POSSUM", banner);
             else if (motor.IsRagdolled) GUI.Label(center, "OOF!  (mash Space)", banner);
 
@@ -138,7 +147,15 @@ namespace Roadkill
                 GUI.color = previous;
             }
 
-            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 140f), Help, label);
+            if (knockout != null && knockout.ReviveTarget != null && !health.IsDown)
+            {
+                string who = PlayerNet.NameOf(knockout.ReviveTarget.OwnerClientId);
+                GUI.Label(new Rect(w * 0.5f - 200f, h * 0.5f + 60f, 400f, 24f), $"Hold F: get {who} up  ·  E: drag", centered);
+                if (knockout.ReviveProgress > 0f)
+                    Bar(new Rect(w * 0.5f - 100f, h * 0.5f + 86f, 200f, 10f), knockout.ReviveProgress, new Color(0.4f, 1f, 0.5f), "");
+            }
+
+            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 160f), Help, label);
             string rules = PlaygroundRules.Summary();
             if (!FriendlyFire.Enabled) rules = rules.Length > 0 ? rules + ", friendly fire off" : "Friendly fire off";
             if (rules.Length > 0)
@@ -152,7 +169,8 @@ namespace Roadkill
             var held = controller.HeldBody(hand);
             if (held == null) return $"{side}: empty";
             var prop = held.GetComponent<PhysicsProp>();
-            string name = prop != null ? prop.displayName : held.name;
+            var player = held.GetComponent<PlayerNet>();
+            string name = prop != null ? prop.displayName : player != null ? $"{PlayerNet.NameOf(player.OwnerClientId)} (out cold)" : held.name;
             int count = HandsController.HolderCount(held);
             return $"{side}: {name}, {held.mass:0} kg ({count} hand{(count == 1 ? "" : "s")} on it)";
         }

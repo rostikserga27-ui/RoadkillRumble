@@ -39,6 +39,8 @@ namespace Roadkill
         public static bool PunchPressed => Ms != null && Ms.leftButton.wasPressedThisFrame;
         public static bool PunchHeld => Ms != null && Ms.leftButton.isPressed;
         public static bool GrabPressed => Kb != null && Kb.eKey.wasPressedThisFrame;
+        public static bool ReviveHeld => Kb != null && Kb.fKey.isPressed;
+        public static bool ResetHeld => Kb != null && Kb.rKey.isPressed;
         public static bool LeftHandHeld => Ms != null && Ms.leftButton.isPressed;
         public static bool RightHandHeld => Ms != null && Ms.rightButton.isPressed;
         public static bool ClickPressed => Ms != null && Ms.leftButton.wasPressedThisFrame;
@@ -77,6 +79,8 @@ namespace Roadkill
         public static bool PunchPressed => Input.GetMouseButtonDown(0);
         public static bool PunchHeld => Input.GetMouseButton(0);
         public static bool GrabPressed => Input.GetKeyDown(KeyCode.E);
+        public static bool ReviveHeld => Input.GetKey(KeyCode.F);
+        public static bool ResetHeld => Input.GetKey(KeyCode.R);
         public static bool LeftHandHeld => Input.GetMouseButton(0);
         public static bool RightHandHeld => Input.GetMouseButton(1);
         public static bool ClickPressed => Input.GetMouseButtonDown(0);

@@ -148,7 +148,7 @@ namespace Roadkill
             }
 
             UpdateCrouch();
-            if (RkInput.ResetPressed) Respawn();
+            if (RkInput.ResetPressed && (health == null || !health.IsDown)) Respawn();   // out cold: hold R (PlayerKnockout)
         }
 
         void LateUpdate()
@@ -494,6 +494,12 @@ namespace Roadkill
         }
 
         public void Respawn() => TeleportTo(spawnPosition, spawnRotation);
+
+        /// <summary>Revived: get up as soon as the body has settled.</summary>
+        public void WakeUp()
+        {
+            if (state == State.Ragdoll) ragdollTimer = 0f;
+        }
 
         /// <summary>Throw the standing player through the air (jump pads): keeps the speed, little air control until landing.</summary>
         public void Launch(Vector3 velocity)

@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "12";
+        const string BuildVersion = "14";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -104,7 +104,7 @@ namespace Roadkill.EditorTools
 
             var capsule = go.AddComponent<CapsuleCollider>();
             capsule.height = 1.8f;
-            capsule.radius = 0.35f;
+            capsule.radius = 0.3f;   // about the fisherman's own width, so fists reach a face (players stand 0.6 m apart)
             capsule.center = new Vector3(0f, 0.9f, 0f);
 
             // First-person view (enabled only for the owner at spawn).
@@ -160,6 +160,7 @@ namespace Roadkill.EditorTools
             net.body = ragdoll;
             if (ragdoll != null) go.AddComponent<RagdollPoseSync>();   // others see a downed body as its owner does
             go.AddComponent<PunchReaction>();
+            go.AddComponent<PlayerKnockout>();   // out cold: dragged, revived, respawned
             go.AddComponent<PlayerFists>();   // physical punches with the ragdoll's own arms
             return go;
         }

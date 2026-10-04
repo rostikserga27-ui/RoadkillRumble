@@ -17,6 +17,8 @@ namespace Roadkill
             "E: grab with both hands / let go   G hold, then release: throw\n" +
             "C hold: play possum   Space while down: get up faster\n" +
             "Friend out cold: E drag them, hold F get them up\n" +
+            "Shop: look at an item, E buy   1-6 / wheel: hotbar   LMB with a bat: swing\n" +
+            "Revolver: LMB shoot, hold RMB fan the hammer, R reload\n" +
             "V hold: talk   F2 open mic on/off   F3 hear yourself\n" +
             "F9 playground rules   R respawn   F1 hide help   Esc free the mouse";
 
@@ -57,7 +59,10 @@ namespace Roadkill
             if (!Physics.Raycast(ray, out RaycastHit hit, hands.reach, ~0, QueryTriggerInteraction.Ignore)) return "";
             var prop = hit.collider.GetComponentInParent<PhysicsProp>();
             var body = prop != null ? prop.GetComponent<Rigidbody>() : null;
-            return body != null ? $"E: {prop.displayName}  {body.mass:0} kg" : "";
+            if (body == null) return "";
+            return prop.TryGetComponent(out Sellable sellable)
+                ? $"E: {prop.displayName}  {body.mass:0} kg   sells for ${sellable.SellValue}"
+                : $"E: {prop.displayName}  {body.mass:0} kg";
         }
 
         void OnGUI()
@@ -153,7 +158,7 @@ namespace Roadkill
                     Bar(new Rect(w * 0.5f - 100f, h * 0.5f + 86f, 200f, 10f), knockout.ReviveProgress, new Color(0.4f, 1f, 0.5f), "");
             }
 
-            if (showHelp) GUI.Label(new Rect(20f, 20f, 600f, 160f), Help, label);
+            if (showHelp) GUI.Label(new Rect(20f, 20f, 640f, 200f), Help, label);
             string rules = PlaygroundRules.Summary();
             if (!FriendlyFire.Enabled) rules = rules.Length > 0 ? rules + ", friendly fire off" : "Friendly fire off";
             if (rules.Length > 0)

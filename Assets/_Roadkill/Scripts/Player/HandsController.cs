@@ -24,6 +24,8 @@ namespace Roadkill
 
         public class Hand
         {
+            public MeshFilter VisualFilter;       // first-person mesh, swapped for the gun grip
+            public Mesh FistMesh;
             public readonly int Index;
             public readonly Vector3 RestOffset;   // view-local idle position
             public readonly float SideOffset;     // left / right spread while holding
@@ -51,6 +53,12 @@ namespace Roadkill
         public Camera viewCamera;
         [Tooltip("First-person sleeve-and-hand model (left hand; mirrored for the right). Cubes if empty.")]
         public GameObject handModel;
+        [Tooltip("The first-person hand around a pistol grip (FistRig): the right hand switches to it while a revolver is out.")]
+        public Mesh gunGripMesh;
+        [Tooltip("Which way that hand's palm faces, in its mesh space (FistRig works it out).")]
+        public Vector3 gunGripPalm = Vector3.forward;
+        [Tooltip("Degrees the gun hand's forearm may point away from the shoulder before the wrist bends instead.")]
+        public float maxWristBend = 25f;
         public float reach = 2.6f;
         public float capacityPerHandKg = 20f;
         [Tooltip("Let go automatically when the grip is pulled this far from the hand.")]
@@ -107,15 +115,22 @@ namespace Roadkill
         static void ResetStatics() => All.Clear();
 
         PlayerMotor motor;
+        PlayerTools tools;
+        ShopInteractor shop;
         Collider[] ownColliders;
         float throwPunch;   // first-person hands: seconds left of the throw's forward jab
         readonly Vector3[] fistOffset = new Vector3[2];   // first-person punch pose (PlayerFists)
         readonly float[] fistCurl = new float[2];
         readonly bool[] fistActive = new bool[2];
+        readonly bool[] handTargetActive = new bool[2];   // first-person hand sent to a world point (a gun's reload)
+        readonly Vector3[] handTarget = new Vector3[2];
+        readonly float[] handTargetCurl = new float[2];
 
         void Awake()
         {
             motor = GetComponent<PlayerMotor>();
+            tools = GetComponent<PlayerTools>();
+            shop = GetComponent<ShopInteractor>();
             ownColliders = GetComponentsInChildren<Collider>();
             Left = new Hand(0, new Vector3(-0.28f, -0.3f, 0.55f), -0.22f);
             Right = new Hand(1, new Vector3(0.28f, -0.3f, 0.55f), 0.22f);
@@ -284,7 +299,9 @@ namespace Roadkill
             var fallCamera = GetComponent<PossumCamera>();
             bool cameraReady = fallCamera == null || !fallCamera.IsTransitioning;
             bool canAct = cameraReady && (motor == null || !motor.IsRagdolled) && Cursor.lockState == CursorLockMode.Locked;
-            if (canAct && RkInput.GrabPressed) ToggleGrab();
+            // A tool in hand (hotbar) leaves no hand free to grab; E on a shop item buys it instead (ShopInteractor).
+            bool shopping = shop != null && shop.HasTarget;
+            if (canAct && RkInput.GrabPressed && !shopping && (tools == null || !tools.BlocksGrab)) ToggleGrab();
 
             bool holding = IsHolding(Left) || IsHolding(Right);
             if (holding && RkInput.ThrowHeld)
@@ -418,6 +435,12 @@ namespace Roadkill
             return best;
         }
 
+        /// <summary>Test hook: throw what the hands hold, as releasing G at this charge (0..1) would.</summary>
+        public void DebugThrow(float charge)
+        {
+            if (IsSpawned && IsOwner && (IsHolding(Left) || IsHolding(Right))) ThrowRpc(charge, viewCamera.transform.forward);
+        }
+
         /// <summary>Test hook: grab whatever is under the crosshair with hand 0 (left) or 1 (right).</summary>
         public void DebugGrab(int handIndex)
         {
@@ -475,6 +498,18 @@ namespace Roadkill
             fistActive[hand] = active;
         }
 
+        /// <summary>
+        /// First person: send a hand to a world point (a revolver's reload: push the cylinder out, slap the
+        /// ejector, bring the speedloader), or let it go back to its usual place.
+        /// </summary>
+        public void SetHandTarget(int hand, bool active, Vector3 world, float curl = 0f)
+        {
+            if (hand < 0 || hand > 1) return;
+            handTargetActive[hand] = active;
+            handTarget[hand] = world;
+            handTargetCurl[hand] = curl;
+        }
+
         void CreateVisual(Hand hand, string handName)
         {
             GameObject visual;
@@ -502,15 +537,46 @@ namespace Roadkill
             foreach (var r in visual.GetComponentsInChildren<Renderer>())
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             hand.Visual = visual.transform;
+            hand.VisualFilter = visual.GetComponentInChildren<MeshFilter>();
+            if (hand.VisualFilter != null) hand.FistMesh = hand.VisualFilter.sharedMesh;
         }
 
         void UpdateVisual(Hand hand)
         {
             if (hand.Visual == null) return;
+            var revolver = tools != null ? tools.Revolver : null;
+            bool gunOut = revolver != null && tools.GripPoint != null;
+            // With the revolver out the left hand is put away, and only comes up from below for the reload.
+            if (hand == Left)
+            {
+                bool show = !gunOut || revolver.Reloading;
+                if (show != hand.Visual.gameObject.activeSelf)
+                {
+                    if (show) hand.Visual.localPosition = hand.RestOffset + new Vector3(-0.1f, -0.35f, -0.1f);
+                    hand.Visual.gameObject.SetActive(show);
+                }
+                if (!show) return;
+            }
+            // The right hand: the open grip around the revolver, set by the gun itself; the fist otherwise.
+            if (hand == Right && hand.VisualFilter != null && gunGripMesh != null)
+            {
+                var mesh = gunOut ? gunGripMesh : hand.FistMesh;
+                if (hand.VisualFilter.sharedMesh != mesh) hand.VisualFilter.sharedMesh = mesh;
+                if (gunOut)
+                {
+                    HoldGun(hand, revolver);
+                    return;
+                }
+            }
             Transform view = viewCamera.transform;
             var held = HeldBody(hand);
             Vector3 targetWorld = held == null ? view.TransformPoint(hand.RestOffset)
                 : TryGetBodyGripPoint(hand, out Vector3 bodyGrip) ? bodyGrip : held.transform.TransformPoint(hand.LocalGrip);
+            // The right hand grips the hotbar tool.
+            var grip = hand == Right && tools != null ? tools.GripPoint : null;
+            if (grip != null) targetWorld = grip.position;
+            bool sent = handTargetActive[hand.Index] && held == null;
+            if (sent) targetWorld = handTarget[hand.Index];
             Vector3 local = Vector3.ClampMagnitude(view.InverseTransformPoint(targetWorld), 1.2f);
             local.z = Mathf.Max(local.z, 0.3f);
             // Winding up a throw draws the hands back and up; letting go jabs them forward.
@@ -518,12 +584,47 @@ namespace Roadkill
             local += Vector3.forward * (0.3f * Mathf.Sin(Mathf.Clamp01(throwPunch / 0.25f) * Mathf.PI));
             if (held == null) local += fistOffset[hand.Index];
             // A punch has to snap: follow it much more tightly than the idle sway.
-            float k = 1f - Mathf.Exp(-(fistActive[hand.Index] ? 60f : 20f) * Time.deltaTime);
+            float k = 1f - Mathf.Exp(-(fistActive[hand.Index] ? 60f : sent ? 30f : 20f) * Time.deltaTime);
             hand.Visual.localPosition = Vector3.Lerp(hand.Visual.localPosition, local, k);
             // Gripping curls the wrist down; a wind-up cocks it back.
-            float curl = (held != null ? 20f : 0f) - 35f * ThrowCharge + (held == null ? fistCurl[hand.Index] : 0f);
+            float curl = (held != null ? 20f : 0f) - 35f * ThrowCharge + (held == null ? fistCurl[hand.Index] : 0f)
+                         + (sent ? handTargetCurl[hand.Index] : 0f);
             Quaternion pose = Quaternion.AngleAxis(curl, Vector3.right) * hand.VisualRestRotation;
+            // Working a gun (the reload, or the hand on the revolver as it moves): the forearm runs from a shoulder
+            // in the corner of the view to the hand, instead of straight back into the camera.
+            if (sent || (grip != null && tools.Revolver != null))
+            {
+                Vector3 shoulder = new Vector3(hand.Index == 0 ? -0.3f : 0.3f, -0.85f, 0.2f);
+                Vector3 reach = hand.Visual.localPosition - shoulder;
+                if (reach.sqrMagnitude > 0.0001f) pose = Quaternion.FromToRotation(Vector3.forward, reach.normalized) * pose;
+            }
             hand.Visual.localRotation = Quaternion.Slerp(hand.Visual.localRotation, pose, k);
+        }
+
+        /// <summary>
+        /// The right hand around the revolver's grip: placed at the gun's hand point and turned so the fingers
+        /// run forward round the grip and the palm faces the gun's left side, whatever the gun is doing.
+        /// </summary>
+        void HoldGun(Hand hand, RevolverTool revolver)
+        {
+            Transform visual = hand.Visual;
+            Transform mesh = hand.VisualFilter.transform;   // the import's axis fix-up sits between the two
+            // The hand mesh's own axes as they are now (TransformVector keeps the mirror of the right hand).
+            Vector3 alongNow = mesh.TransformVector(Vector3.down).normalized;
+            Vector3 palmNow = mesh.TransformVector(gunGripPalm).normalized;
+            Quaternion now = Quaternion.LookRotation(alongNow, palmNow);
+            Quaternion wanted = Quaternion.LookRotation(revolver.HandAlong, revolver.HandPalm);
+            visual.rotation = wanted * Quaternion.Inverse(now) * visual.rotation;
+            // A wrist: when the gun turns far (the reload), the forearm would swing up across the view, so turn
+            // the hand about the grip until the forearm points no more than maxWristBend away from the shoulder.
+            Vector3 forearm = -mesh.TransformVector(Vector3.down).normalized;
+            Vector3 shoulder = viewCamera.transform.TransformPoint(new Vector3(0.3f, -0.85f, 0.2f));
+            Vector3 toShoulder = (shoulder - revolver.Grip.position).normalized;
+            float bend = Vector3.Angle(forearm, toShoulder);
+            if (bend > maxWristBend)
+                visual.rotation = Quaternion.FromToRotation(forearm, Vector3.Slerp(forearm, toShoulder, (bend - maxWristBend) / bend)) * visual.rotation;
+            // The mesh's origin is the middle of the hand: put that on the grip.
+            visual.position += revolver.Grip.position - mesh.position;
         }
 
         // ---- server --------------------------------------------------------------------------
@@ -640,6 +741,7 @@ namespace Roadkill
             foreach (var body in thrown)
             {
                 if (HolderCount(body) > 0) continue;   // a friend still has it: you only let go
+                if (body.TryGetComponent(out Sellable sellable)) sellable.ServerSetLastOwner(OwnerClientId);   // credited as the seller
                 float massFactor = Mathf.Clamp(fullSpeedThrowMass * PlaygroundRules.ThrowMassScale / body.mass, 0.15f, 1f);
                 body.AddForce(aim * speed * massFactor, ForceMode.VelocityChange);
             }
@@ -693,6 +795,7 @@ namespace Roadkill
             };
 
             target.WakeUp();
+            if (target.TryGetComponent(out Sellable sellable)) sellable.ServerSetLastOwner(OwnerClientId);   // credited as the seller
             hand.ServerHeld = target;
             hand.Joint = joint;
             SetHeld(hand, target.GetComponent<NetworkObject>().NetworkObjectId);

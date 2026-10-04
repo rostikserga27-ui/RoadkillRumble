@@ -20,7 +20,7 @@ namespace Roadkill.EditorTools
         const string MaterialFolder = "Assets/_Roadkill/Generated/Materials";
         const string VersionFile = "Assets/_Roadkill/Generated/NetPrefabVersion.txt";
         // Bump when the player or prop builders change, so every machine regenerates.
-        const string BuildVersion = "17";
+        const string BuildVersion = "22";
 
         static readonly Color Skin = new Color(1f, 0.8f, 0.62f);
 
@@ -48,6 +48,7 @@ namespace Roadkill.EditorTools
             {
                 var go = definition.Build(MaterialFor);
                 go.name = definition.Id;
+                if (definition.SellValue > 0) go.AddComponent<Sellable>().Configure(definition.SellValue);
                 AddNetworking(go, NetworkTransform.AuthorityModes.Server);
                 Save(go, definition.Id);
             }
@@ -58,6 +59,8 @@ namespace Roadkill.EditorTools
             rules.AddComponent<NetworkObject>();
             rules.AddComponent<PlaygroundRules>();
             rules.AddComponent<FriendlyFire>();   // the host's friendly-fire switches ride on the same object
+            rules.AddComponent<SellLedger>();     // and the sell van's sales
+            rules.AddComponent<TeamWallet>();     // and the team's shared money
             Save(rules, PlaygroundRules.PrefabName);
 
             File.WriteAllText(VersionFile, BuildVersion);
@@ -144,12 +147,25 @@ namespace Roadkill.EditorTools
             }
             var hands = go.AddComponent<HandsController>();
             hands.viewCamera = cam;
-            hands.handModel = FirstPersonFist();
+            hands.handModel = FirstPersonFist(out hands.gunGripMesh, out hands.gunGripPalm);
             var voice = go.AddComponent<VoiceChat>();
             voice.mouthPoint = head;
             voice.mouthVisual = mouth;
             var hud = go.AddComponent<DebugHud>();
             hud.enabled = false;
+
+            // Shop, wallet and hotbar: switched on for the local player only (PlayerNet).
+            var money = go.AddComponent<MoneyManager>();
+            money.enabled = false;
+            var hotbar = go.AddComponent<HotbarInventory>();
+            hotbar.enabled = false;
+            var shop = go.AddComponent<ShopInteractor>();
+            shop.Setup(cam, money, hotbar, motor);
+            shop.enabled = false;
+            var hotbarUI = go.AddComponent<HotbarUI>();
+            hotbarUI.Setup(hotbar, money);
+            hotbarUI.enabled = false;
+            go.AddComponent<PlayerTools>().Setup(ShopAssetBuilder.EnsureAssets(), hotbar, cam);
             var net = go.AddComponent<PlayerNet>();
             net.playerCamera = cam;
             net.listener = listener;
@@ -168,14 +184,18 @@ namespace Roadkill.EditorTools
         const string HandModelPath = CharacterModelImport.FishermanFolder + "FisherFPArm.fbx";
 
         /// <summary>The first-person arm with its hand closed into a fist (the mesh is read, so it is imported readable for a moment).</summary>
-        static GameObject FirstPersonFist()
+        static GameObject FirstPersonFist(out Mesh gunGrip, out Vector3 gunGripPalm)
         {
+            gunGrip = null;
+            gunGripPalm = Vector3.forward;
             if (AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath) == null) return null;
             CharacterModelImport.ForceReadable = true;
             try
             {
                 AssetDatabase.ImportAsset(HandModelPath, ImportAssetOptions.ForceUpdate);
-                return FistRig.FirstPersonFist(AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath));
+                var arm = AssetDatabase.LoadAssetAtPath<GameObject>(HandModelPath);
+                gunGrip = FistRig.FirstPersonGrip(arm, out gunGripPalm);   // the hand around the revolver's grip
+                return FistRig.FirstPersonFist(arm);
             }
             finally
             {
@@ -270,7 +290,7 @@ namespace Roadkill.EditorTools
             Object.DestroyImmediate(go);
         }
 
-        static Material MaterialFor(Color color)
+        internal static Material MaterialFor(Color color)
         {
             string path = $"{MaterialFolder}/Flat_{ColorUtility.ToHtmlStringRGB(color)}.mat";
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);

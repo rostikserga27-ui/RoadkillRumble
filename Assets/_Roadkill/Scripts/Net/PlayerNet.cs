@@ -71,6 +71,10 @@ namespace Roadkill
             Motor.enabled = mine;
             var hud = GetComponent<DebugHud>();
             if (hud != null) hud.enabled = mine;
+            // Wallet, hotbar and shop are the local player's alone.
+            foreach (var local in new Behaviour[] { GetComponent<MoneyManager>(), GetComponent<HotbarInventory>(),
+                         GetComponent<ShopInteractor>(), GetComponent<HotbarUI>() })
+                if (local != null) local.enabled = mine;
             foreach (var r in bodyRenderers) r.enabled = !mine;
             if (mine)
             {

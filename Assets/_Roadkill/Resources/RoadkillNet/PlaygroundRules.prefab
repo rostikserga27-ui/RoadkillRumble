@@ -12,6 +12,8 @@ GameObject:
   - component: {fileID: 586978373018951518}
   - component: {fileID: 9026866641367395650}
   - component: {fileID: 5377254073260716286}
+  - component: {fileID: 7306748264896783001}
+  - component: {fileID: 8167048978655441389}
   m_Layer: 0
   m_Name: PlaygroundRules
   m_TagString: Untagged
@@ -87,3 +89,30 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Roadkill.FriendlyFire
   ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &7306748264896783001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910807018244436427}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5edda263ffc27d74d86cdff08cbdd002, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.SellLedger
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &8167048978655441389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910807018244436427}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d106971e2643f8f428f85662996d35e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.TeamWallet
+  ShowTopMostFoldoutHeaderGroup: 1
+  startingMoney: 500

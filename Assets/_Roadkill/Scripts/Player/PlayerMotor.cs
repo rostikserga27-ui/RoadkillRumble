@@ -67,6 +67,7 @@ namespace Roadkill
         CapsuleCollider capsule;
         PlayerHealth health;
         HandsController hands;
+        PlayerTools tools;
         bool bodyLeads;   // down: the capsule trails the body's hips
         PhysicsMaterial slideMaterial;
         PhysicsMaterial ragdollMaterial;
@@ -95,6 +96,7 @@ namespace Roadkill
             capsule = GetComponent<CapsuleCollider>();
             health = GetComponent<PlayerHealth>();
             hands = GetComponent<HandsController>();
+            tools = GetComponent<PlayerTools>();
 
             // Frictionless while walking so the capsule never sticks to walls; grippy while ragdolled.
             slideMaterial = new PhysicsMaterial("PlayerSlide")
@@ -144,7 +146,8 @@ namespace Roadkill
             }
 
             UpdateCrouch();
-            if (RkInput.ResetPressed && (health == null || !health.IsDown)) Respawn();   // out cold: hold R (PlayerKnockout)
+            // Out cold: hold R (PlayerKnockout). With a gun out, R reloads instead.
+            if (RkInput.ResetPressed && (health == null || !health.IsDown) && (tools == null || !tools.HoldsGun)) Respawn();
         }
 
         void LateUpdate()
@@ -594,6 +597,13 @@ namespace Roadkill
         {
             debugMove = Vector2.ClampMagnitude(move, 1f);
             debugMoveUntil = Time.time + seconds;
+        }
+
+        /// <summary>A gun's kick: the view jumps up (and a little sideways); the player pulls it back down.</summary>
+        public void AddRecoil(float pitchUp, float yawKick)
+        {
+            pitch = Mathf.Clamp(pitch - pitchUp, -85f, 85f);
+            yaw += yawKick;
         }
 
         /// <summary>Test hook: turn the view toward a point, as the mouse would (no teleport).</summary>

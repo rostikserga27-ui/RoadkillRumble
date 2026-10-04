@@ -12,7 +12,8 @@ namespace Roadkill.EditorTools
     /// 0.135, middle joints at ~0.175, fingertips at ~0.215, thumb base at 0.05) and
     ///   - on the body: adds bones for the fingers, their tips and the thumb under each hand bone, rebinds
     ///     those vertices to them and adds FistCurl to bend them (saved as a new mesh asset);
-    ///   - on the first-person arm (a plain mesh): bends the fingers into a fist in the mesh itself.
+    ///   - on the first-person arm (a plain mesh): bends the fingers into a fist in the mesh itself, and a
+    ///     second mesh with the hand around a pistol grip (index finger on the trigger), for the revolver.
     /// </summary>
     public static class FistRig
     {
@@ -20,6 +21,7 @@ namespace Roadkill.EditorTools
         const string BodyMeshPath = "Assets/_Roadkill/Generated/SK_Fisherman_Body_Fists.asset";
         const string ArmMeshPath = "Assets/_Roadkill/Generated/FisherFPArm_Fist.asset";
         const string ArmPrefabPath = "Assets/_Roadkill/Generated/FisherFPArm_Fist.prefab";
+        const string GripMeshPath = "Assets/_Roadkill/Generated/FisherFPArm_Grip.asset";
 
         enum Piece { Palm, Finger, FingerTip, Thumb }
 
@@ -27,7 +29,10 @@ namespace Roadkill.EditorTools
         class HandShape
         {
             public readonly Dictionary<int, Piece> Pieces = new Dictionary<int, Piece>();
+            /// <summary>Finger vertices: which finger, 0 the index (next to the thumb) to 3 the little finger.</summary>
+            public readonly Dictionary<int, int> FingerOf = new Dictionary<int, int>();
             public Vector3 Knuckles, MiddleJoints, ThumbRoot;
+            public Vector3 Palm;       // the way the fingers close
             public Vector3 Bend;       // finger bend axis: positive rotation closes the hand
             public Vector3 ThumbTuck;  // thumb axis: positive rotation folds it across the fingers
         }
@@ -59,6 +64,9 @@ namespace Roadkill.EditorTools
             var thumb = behind.OrderByDescending(g => Mathf.Abs(SideOf(g))).FirstOrDefault();
             float thumbSign = thumb != null && SideOf(thumb) < 0f ? -1f : 1f;
 
+            bool IsFinger(IGrouping<int, int> g) => g != thumb && g.Max(T) > TipSplit * scale && g.Min(T) > (Knuckle - 0.03f) * scale;
+            // Fingers in order from the thumb's side: index, middle, ring, little.
+            var fingers = groups.Where(IsFinger).OrderByDescending(g => SideOf(g) * thumbSign).ToList();
             foreach (var g in groups)
             {
                 if (g == thumb)
@@ -66,11 +74,16 @@ namespace Roadkill.EditorTools
                     foreach (int i in g) shape.Pieces[i] = Piece.Thumb;
                     continue;
                 }
-                bool finger = g.Max(T) > TipSplit * scale && g.Min(T) > (Knuckle - 0.03f) * scale;
+                bool finger = IsFinger(g);
+                int rank = fingers.IndexOf(g);
                 foreach (int i in g)
+                {
                     shape.Pieces[i] = !finger || T(i) <= (Knuckle + 0.004f) * scale ? Piece.Palm
                         : T(i) > TipSplit * scale ? Piece.FingerTip : Piece.Finger;
+                    if (finger) shape.FingerOf[i] = Mathf.Min(rank, 3);
+                }
             }
+            shape.Palm = palm;
 
             shape.Knuckles = wrist + along * (Knuckle * scale);
             shape.MiddleJoints = wrist + along * (Middle * scale) + palm * (0.010f * scale);
@@ -157,10 +170,8 @@ namespace Roadkill.EditorTools
 
             mesh.bindposes = bindposes.ToArray();
             mesh.boneWeights = weights;
-            AssetDatabase.DeleteAsset(BodyMeshPath);
-            AssetDatabase.CreateAsset(mesh, BodyMeshPath);
             smr.bones = bones.ToArray();
-            smr.sharedMesh = mesh;
+            smr.sharedMesh = SaveMesh(mesh, BodyMeshPath);
         }
 
         // ---- the first-person arm: a fist baked into the mesh ---------------------------------------
@@ -211,13 +222,88 @@ namespace Roadkill.EditorTools
             mesh.vertices = positions;
             mesh.normals = normals;
             mesh.RecalculateBounds();
-            AssetDatabase.DeleteAsset(ArmMeshPath);
-            AssetDatabase.CreateAsset(mesh, ArmMeshPath);
-            filter.sharedMesh = mesh;
+            filter.sharedMesh = SaveMesh(mesh, ArmMeshPath);
             copy.name = "FisherFPArm_Fist";
             var prefab = PrefabUtility.SaveAsPrefabAsset(copy, ArmPrefabPath);
             Object.DestroyImmediate(copy);
             return prefab;
+        }
+
+        /// <summary>
+        /// The first-person arm's hand closed around a pistol grip: the index finger hooked on the trigger, the
+        /// other three wrapped round the grip with room for it inside, the thumb laid along the far side. Returns
+        /// the mesh (saved as an asset) and the way the palm faces in mesh space, so the hand can be turned to
+        /// face the grip.
+        /// </summary>
+        public static Mesh FirstPersonGrip(GameObject armModel, out Vector3 palm)
+        {
+            palm = Vector3.forward;
+            var filter = armModel != null ? armModel.GetComponentInChildren<MeshFilter>() : null;
+            if (filter == null) return null;
+            var mesh = Object.Instantiate(filter.sharedMesh);
+            mesh.name = "FisherFPArm_Grip";
+            var positions = mesh.vertices;
+            var normals = mesh.normals;
+            Vector3 along = Vector3.down;
+            float reach = positions.Max(p => Vector3.Dot(p, along));
+            float scale = reach / (Tip - 0.07f);
+            Vector3 wrist = -along * (0.07f * scale);
+            var hand = Enumerable.Range(0, positions.Length).Where(i => Vector3.Dot(positions[i] - wrist, along) > -0.01f);
+            var shape = Shape(positions, mesh.triangles, hand, wrist, along);
+            palm = shape.Palm;
+
+            // Knuckle and middle-joint bends per finger: index (trigger), middle, ring, little.
+            float[] knuckles = { 35f, 72f, 76f, 80f };
+            float[] middles = { 60f, 100f, 102f, 104f };
+            Quaternion thumbTurn = Quaternion.AngleAxis(28f, shape.ThumbTuck);
+            foreach (var pair in shape.Pieces)
+            {
+                int i = pair.Key;
+                if (pair.Value == Piece.Thumb)
+                {
+                    positions[i] = shape.ThumbRoot + thumbTurn * (positions[i] - shape.ThumbRoot);
+                    normals[i] = thumbTurn * normals[i];
+                    continue;
+                }
+                if (pair.Value == Piece.Palm || !shape.FingerOf.TryGetValue(i, out int finger)) continue;
+                Quaternion knuckleTurn = Quaternion.AngleAxis(knuckles[finger], shape.Bend);
+                Quaternion middleTurn = Quaternion.AngleAxis(middles[finger], shape.Bend);
+                Vector3 middleAfter = shape.Knuckles + knuckleTurn * (shape.MiddleJoints - shape.Knuckles);
+                Vector3 p = shape.Knuckles + knuckleTurn * (positions[i] - shape.Knuckles);
+                if (pair.Value == Piece.Finger)
+                {
+                    positions[i] = p;
+                    normals[i] = knuckleTurn * normals[i];
+                }
+                else
+                {
+                    positions[i] = middleAfter + knuckleTurn * middleTurn * Quaternion.Inverse(knuckleTurn) * (p - middleAfter);
+                    normals[i] = knuckleTurn * middleTurn * normals[i];
+                }
+            }
+            mesh.vertices = positions;
+            mesh.normals = normals;
+            mesh.RecalculateBounds();
+            return SaveMesh(mesh, GripMeshPath);
+        }
+
+        /// <summary>
+        /// Save a generated mesh, overwriting an existing asset in place: deleting and re-creating it would
+        /// leave prefabs already loaded in the editor pointing at the destroyed mesh (empty hands).
+        /// </summary>
+        static Mesh SaveMesh(Mesh mesh, string path)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (existing == null)
+            {
+                AssetDatabase.CreateAsset(mesh, path);
+                return mesh;
+            }
+            EditorUtility.CopySerialized(mesh, existing);
+            existing.name = System.IO.Path.GetFileNameWithoutExtension(path);
+            EditorUtility.SetDirty(existing);
+            Object.DestroyImmediate(mesh);
+            return existing;
         }
 
         static Transform Find(Transform parent, string name)

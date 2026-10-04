@@ -98,6 +98,15 @@ namespace Roadkill
             Plate("RESET PROPS", new Vector3(-7f, 0f, -11f), PlaygroundRules.Action.ResetProps, new Color(0.2f, 0.6f, 0.95f));
             Plate("EVERYBODY FLOP!", new Vector3(7f, 0f, -11f), PlaygroundRules.Action.FlopEveryone, Danger);
 
+            // Shops to the west of the spawn, one of each look, facing it: walk up, look at a thing, E to buy.
+            var catalog = Resources.Load<ShopCatalog>(ShopCatalog.ResourcePath);
+            var faceSpawn = Quaternion.LookRotation(Vector3.right);
+            ShopStall.Build(catalog, new Vector3(-13f, 0f, -4.5f), faceSpawn, ShopStall.Style.Door);
+            ShopStall.Build(catalog, new Vector3(-13f, 0f, -10f), faceSpawn, ShopStall.Style.Stall);
+            ShopStall.Build(catalog, new Vector3(-13f, 0f, -15.8f), faceSpawn, ShopStall.Style.Table);
+            // The sell van beside the table shop, its open back toward the shops: throw loot in to sell it.
+            SellVan.Place(new Vector3(-12.6f, 0f, -21f), Quaternion.LookRotation(Vector3.back), group);
+
             Dispenser("Box Supply", new Vector3(3f, 1.4f, 8f), "Box5", 5, 2f, new Vector3(0.4f, 0f, 0.4f));
             Label("BOX SUPPLY", new Vector3(3f, 2.6f, 8f));
 

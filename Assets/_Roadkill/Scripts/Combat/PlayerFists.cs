@@ -75,6 +75,7 @@ namespace Roadkill
         PunchConfig config;
         HandsController hands;
         PunchReaction reaction;
+        PlayerTools tools;
         readonly Fist[] fists = { new Fist { Index = 0 }, new Fist { Index = 1 } };
         int nextHand = 1;          // right first
         bool debugPress;           // test hook: a press of F, then F held for debugHold seconds
@@ -97,6 +98,7 @@ namespace Roadkill
             Player = GetComponent<PlayerNet>();
             hands = GetComponent<HandsController>();
             reaction = GetComponent<PunchReaction>();
+            tools = GetComponent<PlayerTools>();
         }
 
         public override void OnNetworkSpawn()
@@ -158,7 +160,8 @@ namespace Roadkill
             bool testing = Time.time < debugUntil;
             bool locked = Cursor.lockState == CursorLockMode.Locked;
             bool canAct = ((locked && cursorWasLocked) || testing) && !Player.Motor.IsRagdolled
-                          && (fallCamera == null || !fallCamera.IsTransitioning);
+                          && (fallCamera == null || !fallCamera.IsTransitioning)
+                          && (tools == null || !tools.BlocksGrab);   // a tool in hand (the bat) swings on LMB instead
             cursorWasLocked = locked;
             SenseTarget();
             if ((RkInput.PunchPressed || debugPress) && canAct) StartWindUp();

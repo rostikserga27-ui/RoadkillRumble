@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef8e5b157f157af41bb074d4ace9a602, type: 3}
+  m_Name: Revolver
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.ShopItemData
+  displayName: Grandpa's Revolver
+  price: 350
+  type: 0
+  heldPrefab: {fileID: 6109808146588820524, guid: 0aadc9caf0510034aa2dc433ecec8684, type: 3}
+  shopModel: {fileID: 537255983962688106, guid: aa3976d8bbe7b0a47881d057e398c212, type: 3}
+  shopModelScale: 1.6
+  shopModelEuler: {x: 0, y: 90, z: 0}
+  placeholderShape: 3
+  placeholderScale: {x: 0.05, y: 0.12, z: 0.3}
+  iconColor: {r: 0.86, g: 0.64, b: 0.24, a: 1}
+  priceIncreasePerPurchase: 0

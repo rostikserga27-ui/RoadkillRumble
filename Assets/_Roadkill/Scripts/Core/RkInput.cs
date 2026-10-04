@@ -45,6 +45,8 @@ namespace Roadkill
         public static bool RightHandHeld => Ms != null && Ms.rightButton.isPressed;
         public static bool ClickPressed => Ms != null && Ms.leftButton.wasPressedThisFrame;
         public static bool ResetPressed => Kb != null && Kb.rKey.wasPressedThisFrame;
+        public static bool ReloadPressed => Kb != null && Kb.rKey.wasPressedThisFrame;
+        public static bool FanHeld => Ms != null && Ms.rightButton.isPressed;
         public static bool HelpPressed => Kb != null && Kb.f1Key.wasPressedThisFrame;
         public static bool EscapePressed => Kb != null && Kb.escapeKey.wasPressedThisFrame;
         public static bool PushToTalk => Kb != null && Kb.vKey.isPressed;
@@ -57,6 +59,26 @@ namespace Roadkill
         public static bool LaunchPressed => Kb != null && Kb.f6Key.wasPressedThisFrame;
         public static bool ResetPosePressed => Kb != null && Kb.f7Key.wasPressedThisFrame;
         public static bool FireBoxPressed => Kb != null && Kb.f8Key.wasPressedThisFrame;
+        public static bool InteractPressed => Kb != null && Kb.eKey.wasPressedThisFrame;
+        public static bool DebugMoneyPressed => Kb != null && Kb.f10Key.wasPressedThisFrame;
+        /// <summary>Mouse wheel this frame: positive = up.</summary>
+        public static float Scroll => Ms != null ? Ms.scroll.ReadValue().y : 0f;
+
+        /// <summary>Hotbar slot picked with 1-6 this frame (0-based), or -1.</summary>
+        public static int SlotKeyPressed
+        {
+            get
+            {
+                if (Kb == null) return -1;
+                if (Kb.digit1Key.wasPressedThisFrame) return 0;
+                if (Kb.digit2Key.wasPressedThisFrame) return 1;
+                if (Kb.digit3Key.wasPressedThisFrame) return 2;
+                if (Kb.digit4Key.wasPressedThisFrame) return 3;
+                if (Kb.digit5Key.wasPressedThisFrame) return 4;
+                if (Kb.digit6Key.wasPressedThisFrame) return 5;
+                return -1;
+            }
+        }
 #else
         public static Vector2 Move
         {
@@ -85,6 +107,8 @@ namespace Roadkill
         public static bool RightHandHeld => Input.GetMouseButton(1);
         public static bool ClickPressed => Input.GetMouseButtonDown(0);
         public static bool ResetPressed => Input.GetKeyDown(KeyCode.R);
+        public static bool ReloadPressed => Input.GetKeyDown(KeyCode.R);
+        public static bool FanHeld => Input.GetMouseButton(1);
         public static bool HelpPressed => Input.GetKeyDown(KeyCode.F1);
         public static bool EscapePressed => Input.GetKeyDown(KeyCode.Escape);
         public static bool PushToTalk => Input.GetKey(KeyCode.V);
@@ -96,6 +120,19 @@ namespace Roadkill
         public static bool LaunchPressed => Input.GetKeyDown(KeyCode.F6);
         public static bool ResetPosePressed => Input.GetKeyDown(KeyCode.F7);
         public static bool FireBoxPressed => Input.GetKeyDown(KeyCode.F8);
+        public static bool InteractPressed => Input.GetKeyDown(KeyCode.E);
+        public static bool DebugMoneyPressed => Input.GetKeyDown(KeyCode.F10);
+        public static float Scroll => Input.mouseScrollDelta.y;
+
+        public static int SlotKeyPressed
+        {
+            get
+            {
+                for (int i = 0; i < 6; i++)
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + i)) return i;
+                return -1;
+            }
+        }
 #endif
     }
 }

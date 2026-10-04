@@ -67,6 +67,8 @@ namespace Roadkill
                 if (args[i] == "-rktestpunchvictim") gameObject.AddComponent<PunchAutotest>().victimMode = true;
                 if (args[i] == "-rktestduel") gameObject.AddComponent<PunchAutotest>().duelMode = true;
                 if (args[i] == "-rkoldfeel") PunchAutotest.OldFeel = true;
+                if (args[i] == "-rktestsell") gameObject.AddComponent<SellAutotest>();
+                if (args[i] == "-rktestgun") gameObject.AddComponent<GunAutotest>();
             }
         }
 

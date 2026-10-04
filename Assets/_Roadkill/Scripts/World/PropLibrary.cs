@@ -19,19 +19,22 @@ namespace Roadkill
         {
             public string Id;
             public Func<Func<Color, Material>, GameObject> Build;
+            /// <summary>What the capybara pays for it in the sell van (0 = not for sale).</summary>
+            public int SellValue;
         }
 
         /// <summary>Every networked prop, keyed by the prefab name it is saved under.</summary>
         public static readonly Definition[] All =
         {
-            Simple("Gnome", "Garden Gnome", PrimitiveType.Capsule, new Vector3(0.25f, 0.3f, 0.25f), 3f, new Color(0.2f, 0.4f, 0.9f)),
-            new Definition { Id = "Tire", Build = BuildTire },
-            Simple("Battery", "Battery", PrimitiveType.Cube, new Vector3(0.35f, 0.4f, 0.25f), 30f, Rubber),
-            Simple("FuelTank", "Fuel Tank", PrimitiveType.Cube, new Vector3(0.8f, 0.35f, 0.5f), 50f, Metal),
-            Simple("Couch", "Couch", PrimitiveType.Cube, new Vector3(2f, 0.9f, 0.9f), 60f, new Color(0.6f, 0.25f, 0.3f)),
-            Simple("Transmission", "Transmission", PrimitiveType.Cube, new Vector3(0.9f, 0.7f, 0.6f), 75f, new Color(0.3f, 0.3f, 0.25f)),
-            Simple("Engine", "Engine Block", PrimitiveType.Cube, new Vector3(1f, 0.9f, 0.8f), 180f, new Color(0.25f, 0.27f, 0.3f)),
-            Simple("Crate75", "Crate (75 kg)", PrimitiveType.Cube, new Vector3(1f, 0.8f, 0.8f), 75f, Wood),
+            // Loot sells in the van; the box supply and dodgeballs refill on their own, so they do not.
+            Simple("Gnome", "Garden Gnome", PrimitiveType.Capsule, new Vector3(0.25f, 0.3f, 0.25f), 3f, new Color(0.2f, 0.4f, 0.9f), 40),
+            new Definition { Id = "Tire", Build = BuildTire, SellValue = 25 },
+            Simple("Battery", "Battery", PrimitiveType.Cube, new Vector3(0.35f, 0.4f, 0.25f), 30f, Rubber, 60),
+            Simple("FuelTank", "Fuel Tank", PrimitiveType.Cube, new Vector3(0.8f, 0.35f, 0.5f), 50f, Metal, 80),
+            Simple("Couch", "Couch", PrimitiveType.Cube, new Vector3(2f, 0.9f, 0.9f), 60f, new Color(0.6f, 0.25f, 0.3f), 90),
+            Simple("Transmission", "Transmission", PrimitiveType.Cube, new Vector3(0.9f, 0.7f, 0.6f), 75f, new Color(0.3f, 0.3f, 0.25f), 120),
+            Simple("Engine", "Engine Block", PrimitiveType.Cube, new Vector3(1f, 0.9f, 0.8f), 180f, new Color(0.25f, 0.27f, 0.3f), 250),
+            Simple("Crate75", "Crate (75 kg)", PrimitiveType.Cube, new Vector3(1f, 0.8f, 0.8f), 75f, Wood, 50),
             Simple("Box5", "Box (5 kg)", PrimitiveType.Cube, Vector3.one * 0.5f, 5f, new Color(0.8f, 0.7f, 0.45f)),
             new Definition { Id = "SwingingLog", Build = BuildSwingingLog },
             new Definition { Id = "Dodgeball", Build = BuildDodgeball },
@@ -54,10 +57,11 @@ namespace Roadkill
             return go;
         }
 
-        static Definition Simple(string id, string displayName, PrimitiveType shape, Vector3 scale, float mass, Color color) =>
+        static Definition Simple(string id, string displayName, PrimitiveType shape, Vector3 scale, float mass, Color color, int sellValue = 0) =>
             new Definition
             {
                 Id = id,
+                SellValue = sellValue,
                 Build = material =>
                 {
                     var go = GameObject.CreatePrimitive(shape);

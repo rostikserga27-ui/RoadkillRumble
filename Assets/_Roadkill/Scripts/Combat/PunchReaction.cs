@@ -81,19 +81,20 @@ namespace Roadkill
         }
 
         /// <summary>Server: what the punch does to this player on their own machine.</summary>
-        public void ServerReact(float damage, float knockdownSeconds, Vector3 kick, Vector3 shove, ulong attacker, float power)
+        public void ServerReact(float damage, float knockdownSeconds, Vector3 kick, Vector3 shove, ulong attacker, float power,
+            string verb = "punched")
         {
             if (!IsServer) return;
-            ReactRpc(damage, knockdownSeconds, kick, shove, attacker, power);
+            ReactRpc(damage, knockdownSeconds, kick, shove, attacker, power, verb);
         }
 
         [Rpc(SendTo.Owner)]
-        void ReactRpc(float damage, float knockdownSeconds, Vector3 kick, Vector3 shove, ulong attacker, float power)
+        void ReactRpc(float damage, float knockdownSeconds, Vector3 kick, Vector3 shove, ulong attacker, float power, string verb)
         {
             var c = PunchConfig.Current;
             if (knockdownSeconds > 0f) player.Motor.EnterRagdoll(knockdownSeconds, kick);
             else if (shove.sqrMagnitude > 0.0001f) player.Motor.Shove(shove, c.stumbleSeconds);
-            if (damage > 0f) player.Health.Damage(damage, $"punched by {PlayerNet.NameOf(attacker)}");
+            if (damage > 0f) player.Health.Damage(damage, $"{verb} by {PlayerNet.NameOf(attacker)}");
 
             if (CameraFx == null) return;
             // Snap the view the way the blow pushes (rotating forward toward the push; straight on, the head snaps back).

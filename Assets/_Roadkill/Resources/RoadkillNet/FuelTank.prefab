@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 504595077474151232}
   - component: {fileID: 4049939607450668739}
   - component: {fileID: 943334237433468020}
+  - component: {fileID: 3419915583802632964}
   - component: {fileID: 3797994165768517649}
   - component: {fileID: 227941221513291632}
   - component: {fileID: 5486399622222840070}
@@ -175,6 +176,22 @@ MonoBehaviour:
   speedThreshold: 3
   downtime: 1.5
   damageFactor: 0.15
+--- !u!114 &3419915583802632964
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5193878862014389833}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc567dffa989caa40af8dda329779ce7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Roadkill.Sellable
+  sellValue: 80
+  displayName: 
+  priceFrom: {fileID: 0}
+  resaleShare: 0.6
 --- !u!114 &3797994165768517649
 MonoBehaviour:
   m_ObjectHideFlags: 0
